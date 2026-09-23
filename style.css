@@ -40,7 +40,7 @@ svg { display: block; }
   border-radius: 40px;
   box-shadow: 0 20px 60px rgba(27, 42, 74, 0.25);
   overflow: hidden;
-  padding: 0 18px 96px;
+  padding: 0 18px 32px;
 }
 
 .status-bar {
@@ -86,7 +86,7 @@ svg { display: block; }
 }
 .avatar svg { width: 100%; height: 100%; }
 
-.bell { position: absolute; top: 20px; right: 18px; }
+.profile-btn { position: absolute; top: 20px; right: 18px; }
 .icon-btn svg { width: 22px; height: 22px; fill: none; stroke: var(--navy); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 
 /* ---------- Cards ---------- */
@@ -141,8 +141,8 @@ svg { display: block; }
   gap: 10px;
   overflow-x: auto;
   scroll-snap-type: x mandatory;
-  scroll-padding: 0 40px;
-  padding: 6px 40px 10px;
+  scroll-padding: 0 147px;
+  padding: 6px 147px 10px;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
 }
@@ -152,7 +152,7 @@ svg { display: block; }
   --tint: var(--blue);
   --bg: var(--blue-soft);
   flex: 0 0 96px;
-  scroll-snap-align: start;
+  scroll-snap-align: center;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -162,6 +162,15 @@ svg { display: block; }
   background: linear-gradient(180deg, #fff 0%, var(--bg) 100%);
   border: 1px solid var(--border);
   box-shadow: var(--shadow);
+  opacity: .42;
+  transform: scale(.84);
+  transform-origin: center center;
+  transition: opacity .2s ease, transform .2s ease;
+}
+.metric.active {
+  opacity: 1;
+  transform: scale(1.12);
+  z-index: 1;
 }
 .metric svg { width: 22px; height: 22px; fill: var(--tint); margin-bottom: 10px; }
 .metric strong { font-size: 18px; font-weight: 700; line-height: 1.15; white-space: nowrap; }
@@ -198,10 +207,8 @@ svg { display: block; }
 /* ---------- SOS ---------- */
 .sos {
   width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 16px;
+  display: grid;
+  place-items: center;
   padding: 20px;
   border-radius: 28px;
   color: #fff;
@@ -210,27 +217,21 @@ svg { display: block; }
   transition: transform .15s ease;
 }
 .sos:active { transform: scale(0.98); }
-.sos-icon {
-  width: 52px; height: 52px;
-  border-radius: 50%;
-  background: rgba(255,255,255,.18);
-  display: grid; place-items: center;
-}
-.sos-icon svg { width: 28px; height: 28px; fill: none; stroke: #fff; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-.sos-text { display: flex; flex-direction: column; align-items: flex-start; }
-.sos-text strong { font-size: 30px; font-weight: 700; letter-spacing: 1px; line-height: 1.1; }
-.sos-text small { font-size: 13px; opacity: .95; }
+.sos strong { font-size: 30px; font-weight: 700; letter-spacing: 1px; line-height: 1.1; }
 
 /* ---------- Quick actions ---------- */
-.actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; }
+.actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 16px; }
 .action {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 10px;
-  padding: 18px 12px;
+  min-height: 132px;
+  padding: 14px 8px;
   font-weight: 600;
-  font-size: 15px;
+  font-size: 12px;
+  text-align: center;
 }
 .action svg { width: 24px; height: 24px; fill: none; stroke: var(--navy); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 
@@ -238,7 +239,7 @@ svg { display: block; }
 .fab {
   position: absolute;
   right: 16px;
-  bottom: 84px;
+  bottom: 24px;
   width: 44px; height: 44px;
   border-radius: 50%;
   background: #eaf3ff;
