@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OJAS – Profile</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="phone">
+    <!-- Status bar -->
+    <div class="status-bar">
+      <span>9:41</span>
+      <span class="status-icons">
+        <svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5" width="3" height="7" rx="1"/><rect x="10" y="2" width="3" height="10" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg>
+        <svg viewBox="0 0 16 12"><path d="M8 11.5 5.6 9a3.4 3.4 0 0 1 4.8 0L8 11.5Zm-4-4.1a5.7 5.7 0 0 1 8 0l1.4-1.4a7.7 7.7 0 0 0-10.8 0L4 7.4ZM1.2 4.6a9.6 9.6 0 0 1 13.6 0L16 3.4a11.3 11.3 0 0 0-16 0l1.2 1.2Z"/></svg>
+        <span class="battery"><span></span></span>
+      </span>
+    </div>
+
+    <!-- Page header -->
+    <header class="page-header">
+      <a href="home.html" class="icon-btn" aria-label="Back to home">
+        <svg viewBox="0 0 24 24"><path d="m15 5-7 7 7 7"/></svg>
+      </a>
+      <h1>Profile</h1>
+      <span class="icon-btn" aria-hidden="true"></span>
+    </header>
+
+    <!-- Name -->
+    <section class="card name-card">
+      <div>
+        <p class="label">Name</p>
+        <h2 id="profile-name">Neha</h2>
+      </div>
+      <p class="connected"><span class="dot"></span>OJAS Band connected</p>
+    </section>
+
+    <!-- Add info + photo -->
+    <section class="card info-card">
+      <div class="info-head">
+        <h3>Personal Info</h3>
+        <p class="label">Your health details</p>
+        <button class="text-btn" id="edit-info" type="button">
+          <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+          <span>Add info</span>
+        </button>
+      </div>
+
+      <label class="photo-box" aria-label="Upload profile photo">
+        <input type="file" accept="image/*" id="photo-input" hidden />
+        <img id="photo-preview" alt="" hidden />
+        <span class="photo-empty" id="photo-empty">
+          <svg viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4Z"/><circle cx="12" cy="13" r="3.5"/></svg>
+          <span>Add photo</span>
+        </span>
+      </label>
+
+      <dl class="info-list" id="info-list"></dl>
+
+      <form class="info-form" id="info-form" hidden>
+        <label>Name <input name="name" type="text" autocomplete="name" /></label>
+        <label>Age <input name="age" type="number" min="0" max="120" inputmode="numeric" /></label>
+        <label>Blood group
+          <select name="blood">
+            <option value="">Select</option>
+            <option>A+</option><option>A-</option><option>B+</option><option>B-</option>
+            <option>AB+</option><option>AB-</option><option>O+</option><option>O-</option>
+          </select>
+        </label>
+        <label>Height (cm) <input name="height" type="number" min="0" inputmode="numeric" /></label>
+        <label>Weight (kg) <input name="weight" type="number" min="0" inputmode="decimal" step="0.1" /></label>
+        <label>Emergency contact <input name="emergency" type="tel" autocomplete="tel" /></label>
+        <div class="form-actions">
+          <button type="button" class="btn-ghost" id="cancel-info">Cancel</button>
+          <button type="submit" class="btn-primary">Save</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- Documents -->
+    <section class="card docs-card">
+      <label class="upload-btn">
+        <input type="file" id="doc-input" multiple accept=".pdf,image/*,.doc,.docx" hidden />
+        <svg viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M4 16v4h16v-4"/></svg>
+        <span>Upload Documents</span>
+      </label>
+
+      <ul class="doc-list" id="doc-list"></ul>
+      <p class="doc-empty" id="doc-empty">No documents yet. Add reports, prescriptions or ID.</p>
+    </section>
+
+    <!-- Goals & history -->
+    <section class="profile-tiles">
+      <a href="#" class="tile goals">
+        <span class="tile-icon">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/></svg>
+        </span>
+        <strong>Today's Goals</strong>
+        <small>3 of 5 done</small>
+      </a>
+      <a href="#" class="tile history">
+        <span class="tile-icon">
+          <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5M12 7v5l3 2"/></svg>
+        </span>
+        <strong>History</strong>
+        <small>Past readings</small>
+      </a>
+    </section>
+  </main>
+
+  <script src="profile.js"></script>
+</body>
+</html>
