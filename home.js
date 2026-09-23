@@ -28,7 +28,7 @@
   const padding = () => parseFloat(getComputedStyle(track).paddingLeft);
   const step = () => originals[1].offsetLeft - originals[0].offsetLeft;
   const setWidth = () => step() * count;
-  const startOf = (i) => originals[i].offsetLeft - padding();
+  const startOf = (i) => originals[i].offsetLeft - (track.clientWidth - originals[i].offsetWidth) / 2;
 
   function jump(left) {
     track.style.scrollSnapType = 'none';
@@ -55,6 +55,9 @@
   function updateDots() {
     const active = currentIndex();
     dots.forEach((dot, i) => dot.classList.toggle('active', i === active));
+    Array.from(track.children).forEach((card, i) => {
+      card.classList.toggle('active', i % count === (active + count) % count);
+    });
   }
 
   function goTo(i) {
@@ -74,14 +77,6 @@
     clearTimeout(settleTimer);
     settleTimer = setTimeout(recenter, 150);
   }, { passive: true });
-
-  // Auto-advance every 3 seconds; pause while the user is touching or hovering.
-  let paused = false;
-  ['pointerenter', 'touchstart', 'focusin'].forEach((e) => track.parentElement.addEventListener(e, () => (paused = true), { passive: true }));
-  ['pointerleave', 'touchend', 'focusout'].forEach((e) => track.parentElement.addEventListener(e, () => (paused = false), { passive: true }));
-  if (!reduceMotion) {
-    setInterval(() => { if (!paused && !document.hidden) move(1); }, 3000);
-  }
 
   jump(startOf(0));
   updateDots();
