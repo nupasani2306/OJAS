@@ -61,36 +61,53 @@
       </div>
     </section>
 
-    <!-- Vitals -->
-    <section class="vitals">
-      <div class="card vital spo2">
-        <div class="vital-icon">
-          <svg viewBox="0 0 24 24"><path d="M12 2.5S5 10 5 14.5a7 7 0 0 0 14 0C19 10 12 2.5 12 2.5Z"/></svg>
-        </div>
-        <strong>98%</strong>
-        <span>SpO<sub>2</sub></span>
-      </div>
+    <!-- Metrics: horizontal scrollable loop -->
+    <section class="metrics" aria-label="Health metrics">
+      <button class="metrics-arrow prev" aria-label="Previous metric">
+        <svg viewBox="0 0 24 24"><path d="m15 5-7 7 7 7"/></svg>
+      </button>
 
-      <div class="card vital heart">
-        <div class="vital-icon">
+      <div class="metrics-track">
+        <div class="metric heart">
           <svg viewBox="0 0 24 24"><path d="M12 21s-8-5.2-8-11.2A4.6 4.6 0 0 1 12 7a4.6 4.6 0 0 1 8 2.8C20 15.8 12 21 12 21Z"/></svg>
+          <strong>78</strong>
+          <small>bpm</small>
+          <span>Heart Rate</span>
         </div>
-        <strong>78</strong>
-        <small>bpm</small>
-        <span>Heart Rate</span>
-        <svg class="wave" viewBox="0 0 60 20"><path d="M0 12c6 0 6-8 12-8s6 12 12 12 6-12 12-12 6 12 12 12 6-8 12-8"/></svg>
+        <div class="metric spo2">
+          <svg viewBox="0 0 24 24"><path d="M12 2.5S5 10 5 14.5a7 7 0 0 0 14 0C19 10 12 2.5 12 2.5Z"/></svg>
+          <strong>98%</strong>
+          <span>SpO<sub>2</sub></span>
+        </div>
+        <div class="metric steps">
+          <svg viewBox="0 0 24 24"><ellipse cx="8" cy="7" rx="3" ry="4.5"/><ellipse cx="16" cy="13" rx="3" ry="4.5"/><rect x="6" y="12.5" width="4" height="3" rx="1.5"/><rect x="14" y="18.5" width="4" height="3" rx="1.5"/></svg>
+          <strong>4,832</strong>
+          <span>Steps</span>
+        </div>
+        <div class="metric calories">
+          <svg viewBox="0 0 24 24"><path d="M12 22a7 7 0 0 1-7-7c0-4 3-6 4-10 2 1.5 3 3.5 3 5.5 1-1 1.5-2.2 1.5-3.5C16 9 19 12 19 15a7 7 0 0 1-7 7Z"/></svg>
+          <strong>420</strong>
+          <small>kcal</small>
+          <span>Calories</span>
+        </div>
+        <div class="metric sleep">
+          <svg viewBox="0 0 24 24"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z"/></svg>
+          <strong>7h 12m</strong>
+          <span>Sleep</span>
+        </div>
+        <div class="metric water">
+          <svg viewBox="0 0 24 24"><path d="M5 3h14l-2 18H7L5 3Zm1.6 5 .9 9h9l.9-9Z"/></svg>
+          <strong>1.8 L</strong>
+          <span>Water</span>
+        </div>
       </div>
 
-      <div class="card vital steps">
-        <div class="vital-icon">
-          <svg viewBox="0 0 24 24"><ellipse cx="8" cy="7" rx="3" ry="4.5"/><ellipse cx="16" cy="13" rx="3" ry="4.5"/><rect x="6" y="12.5" width="4" height="3" rx="1.5"/><rect x="14" y="18.5" width="4" height="3" rx="1.5"/></svg>
-        </div>
-        <strong>4,832</strong>
-        <span>Steps</span>
-      </div>
+      <button class="metrics-arrow next" aria-label="Next metric">
+        <svg viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></svg>
+      </button>
     </section>
 
-    <div class="pager"><span class="active"></span><span></span><span></span><span></span></div>
+    <div class="pager" aria-hidden="true"></div>
 
     <!-- SOS -->
     <button class="sos" aria-label="SOS – tap and hold for 3 seconds">
@@ -140,5 +157,7 @@
       </a>
     </nav>
   </main>
+
+  <script src="home.js"></script>
 </body>
 </html>
