@@ -106,16 +106,16 @@
   const docInput = document.getElementById('doc-input');
   const docList = document.getElementById('doc-list');
   const docEmpty = document.getElementById('doc-empty');
+  const allDocList = document.getElementById('all-doc-list');
+  const allDocEmpty = document.getElementById('all-doc-empty');
+  const docsModal = document.getElementById('docs-modal');
   let docs = store.get('ojas.documents', []);
   const openable = new Map(); // files picked in this visit can be opened again
 
   const formatSize = (bytes) =>
     bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 
-  function renderDocs() {
-    docList.innerHTML = '';
-    docEmpty.hidden = docs.length > 0;
-    docs.forEach((doc) => {
+  function createDocRow(doc) {
       const li = document.createElement('li');
 
       const icon = document.createElement('span');
@@ -144,9 +144,26 @@
       });
 
       li.append(icon, text, remove);
-      docList.append(li);
-    });
+      return li;
   }
+
+  function renderDocs() {
+    docList.innerHTML = '';
+    allDocList.innerHTML = '';
+    docEmpty.hidden = docs.length > 0;
+    allDocEmpty.hidden = docs.length > 0;
+    docs.slice(0, 3).forEach((doc) => docList.append(createDocRow(doc)));
+    docs.forEach((doc) => allDocList.append(createDocRow(doc)));
+  }
+
+  function setDocsModal(open) {
+    docsModal.hidden = !open;
+    document.body.classList.toggle('modal-open', open);
+  }
+
+  document.getElementById('view-docs').addEventListener('click', () => setDocsModal(true));
+  document.getElementById('close-docs').addEventListener('click', () => setDocsModal(false));
+  document.getElementById('close-docs-backdrop').addEventListener('click', () => setDocsModal(false));
 
   docInput.addEventListener('change', () => {
     Array.from(docInput.files).forEach((file) => {

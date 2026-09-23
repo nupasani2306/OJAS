@@ -82,15 +82,34 @@
 
     <!-- Documents -->
     <section class="card docs-card">
-      <label class="upload-btn">
+      <div class="docs-toolbar">
+        <label class="upload-btn" aria-label="Upload documents">
         <input type="file" id="doc-input" multiple accept=".pdf,image/*,.doc,.docx" hidden />
         <svg viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M4 16v4h16v-4"/></svg>
-        <span>Upload Documents</span>
-      </label>
+        </label>
+        <button class="docs-view-btn" id="view-docs" type="button">
+          <span>View all documents</span>
+          <svg viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></svg>
+        </button>
+      </div>
 
       <ul class="doc-list" id="doc-list"></ul>
       <p class="doc-empty" id="doc-empty">No documents yet. Add reports, prescriptions or ID.</p>
     </section>
+
+    <div class="docs-modal" id="docs-modal" hidden>
+      <button class="modal-backdrop" id="close-docs-backdrop" type="button" aria-label="Close documents"></button>
+      <section class="docs-dialog" role="dialog" aria-modal="true" aria-labelledby="docs-title">
+        <div class="docs-dialog-header">
+          <h2 id="docs-title">Uploaded documents</h2>
+          <button class="modal-close" id="close-docs" type="button" aria-label="Close documents">
+            <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg>
+          </button>
+        </div>
+        <ul class="doc-list modal-doc-list" id="all-doc-list"></ul>
+        <p class="doc-empty" id="all-doc-empty">No documents uploaded yet.</p>
+      </section>
+    </div>
 
     <!-- Goals & history -->
     <section class="profile-tiles">
