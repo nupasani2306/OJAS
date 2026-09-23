@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OJAS – Home</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="phone">
+    <!-- Status bar -->
+    <div class="status-bar">
+      <span>9:41</span>
+      <span class="status-icons">
+        <svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5" width="3" height="7" rx="1"/><rect x="10" y="2" width="3" height="10" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg>
+        <svg viewBox="0 0 16 12"><path d="M8 11.5 5.6 9a3.4 3.4 0 0 1 4.8 0L8 11.5Zm-4-4.1a5.7 5.7 0 0 1 8 0l1.4-1.4a7.7 7.7 0 0 0-10.8 0L4 7.4ZM1.2 4.6a9.6 9.6 0 0 1 13.6 0L16 3.4a11.3 11.3 0 0 0-16 0l1.2 1.2Z"/></svg>
+        <span class="battery"><span></span></span>
+      </span>
+    </div>
+
+    <!-- Header / greeting -->
+    <header class="hero">
+      <div class="hero-text">
+        <p class="greet">Good morning,</p>
+        <h1>Neha <span class="sun">☀️</span></h1>
+        <p class="sub">Take care today!</p>
+      </div>
+
+      <div class="avatar" aria-hidden="true">
+        <!-- Simple illustrated avatar -->
+        <svg viewBox="0 0 120 130">
+          <path d="M22 70c-6-40 18-62 40-62s44 18 38 62c-2 20 4 34 8 44H14c6-12 10-26 8-44Z" fill="#5a3a2e"/>
+          <path d="M24 130c2-22 18-32 36-32s34 10 36 32Z" fill="#b9a4e8"/>
+          <rect x="52" y="84" width="16" height="18" rx="6" fill="#f2c4a4"/>
+          <ellipse cx="60" cy="60" rx="28" ry="31" fill="#f8d2b6"/>
+          <path d="M31 56c2-24 18-34 32-32 16 2 28 14 26 32-10-4-22-14-26-22-6 10-18 20-32 22Z" fill="#5a3a2e"/>
+          <path d="M45 62q5 4 10 0M65 62q5 4 10 0" stroke="#3b2620" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+          <ellipse cx="44" cy="72" rx="5" ry="3" fill="#f4a9a0" opacity=".7"/>
+          <ellipse cx="76" cy="72" rx="5" ry="3" fill="#f4a9a0" opacity=".7"/>
+          <path d="M54 78q6 5 12 0" stroke="#c0645a" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+        </svg>
+      </div>
+
+      <button class="icon-btn bell" aria-label="Notifications">
+        <svg viewBox="0 0 24 24"><path d="M18 16v-5a6 6 0 0 0-12 0v5l-2 2h16l-2-2ZM10 20a2 2 0 0 0 4 0"/></svg>
+      </button>
+    </header>
+
+    <!-- Device card -->
+    <section class="card device">
+      <div class="band" aria-hidden="true"><span></span></div>
+      <div class="device-info">
+        <h2>OJAS Band <svg class="link" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg></h2>
+        <p class="connected"><span class="dot"></span>Connected</p>
+      </div>
+      <div class="device-battery">
+        <strong>82%</strong>
+        <span class="batt"><i></i></span>
+      </div>
+    </section>
+
+    <!-- Vitals -->
+    <section class="vitals">
+      <div class="card vital spo2">
+        <div class="vital-icon">
+          <svg viewBox="0 0 24 24"><path d="M12 2.5S5 10 5 14.5a7 7 0 0 0 14 0C19 10 12 2.5 12 2.5Z"/></svg>
+        </div>
+        <strong>98%</strong>
+        <span>SpO<sub>2</sub></span>
+      </div>
+
+      <div class="card vital heart">
+        <div class="vital-icon">
+          <svg viewBox="0 0 24 24"><path d="M12 21s-8-5.2-8-11.2A4.6 4.6 0 0 1 12 7a4.6 4.6 0 0 1 8 2.8C20 15.8 12 21 12 21Z"/></svg>
+        </div>
+        <strong>78</strong>
+        <small>bpm</small>
+        <span>Heart Rate</span>
+        <svg class="wave" viewBox="0 0 60 20"><path d="M0 12c6 0 6-8 12-8s6 12 12 12 6-12 12-12 6 12 12 12 6-8 12-8"/></svg>
+      </div>
+
+      <div class="card vital steps">
+        <div class="vital-icon">
+          <svg viewBox="0 0 24 24"><ellipse cx="8" cy="7" rx="3" ry="4.5"/><ellipse cx="16" cy="13" rx="3" ry="4.5"/><rect x="6" y="12.5" width="4" height="3" rx="1.5"/><rect x="14" y="18.5" width="4" height="3" rx="1.5"/></svg>
+        </div>
+        <strong>4,832</strong>
+        <span>Steps</span>
+      </div>
+    </section>
+
+    <div class="pager"><span class="active"></span><span></span><span></span><span></span></div>
+
+    <!-- SOS -->
+    <button class="sos" aria-label="SOS – tap and hold for 3 seconds">
+      <span class="sos-icon">
+        <svg viewBox="0 0 24 24"><path d="M6 18v-6a6 6 0 0 1 12 0v6ZM4 18h16v3H4ZM12 1v2M3.5 4.5 5 6M20.5 4.5 19 6"/></svg>
+      </span>
+      <span class="sos-text">
+        <strong>SOS</strong>
+        <small>Tap and hold for 3 seconds</small>
+      </span>
+    </button>
+
+    <!-- Quick actions -->
+    <section class="actions">
+      <a href="#" class="card action">
+        <svg viewBox="0 0 24 24"><circle cx="14" cy="4" r="2"/><path d="m8 21 3-7 3 3v4M6 12l3-4 4 1 2 4 3 1M11 14 9 8"/></svg>
+        <span>Beast Mode</span>
+      </a>
+      <a href="#" class="card action">
+        <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5M12 7v5l3 2"/></svg>
+        <span>History</span>
+      </a>
+    </section>
+
+    <!-- Floating assistant -->
+    <button class="fab" aria-label="Assistant">
+      <svg viewBox="0 0 24 24"><rect x="4" y="7" width="16" height="12" rx="4"/><path d="M12 3v4M9 12h.01M15 12h.01M9.5 15.5h5"/></svg>
+    </button>
+
+    <!-- Bottom navigation -->
+    <nav class="tabbar">
+      <a href="#" class="tab active">
+        <svg viewBox="0 0 24 24"><path d="M3 11 12 4l9 7v9h-6v-6H9v6H3Z"/></svg>
+        <span>Home</span>
+      </a>
+      <a href="#" class="tab">
+        <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5M12 7v5l3 2"/></svg>
+        <span>History</span>
+      </a>
+      <a href="#" class="tab">
+        <svg viewBox="0 0 24 24"><circle cx="14" cy="4" r="2"/><path d="m8 21 3-7 3 3v4M6 12l3-4 4 1 2 4 3 1M11 14 9 8"/></svg>
+        <span>Beast Mode</span>
+      </a>
+      <a href="#" class="tab">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>
+        <span>Profile</span>
+      </a>
+    </nav>
+  </main>
+</body>
+</html>
