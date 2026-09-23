@@ -446,6 +446,79 @@ svg { display: block; }
 .tile strong { font-size: 15px; margin-top: 14px; }
 .tile small { font-size: 12px; color: var(--muted); }
 
+/* ---------- Emergency contacts page ---------- */
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.message-card {
+  margin-top: 14px;
+  padding: 18px;
+  border-radius: 24px;
+  color: #fff;
+  background: linear-gradient(160deg, #ff6b6b 0%, var(--red) 100%);
+  box-shadow: 0 10px 24px rgba(239, 59, 59, 0.3);
+}
+.message-head { display: flex; align-items: center; gap: 10px; }
+.message-head h3 { flex: 1; min-width: 0; font-size: 16px; font-weight: 600; white-space: nowrap; }
+.message-icon { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: rgba(255,255,255,.2); }
+.message-icon svg { width: 20px; height: 20px; fill: none; stroke: #fff; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.message-edit {
+  flex-shrink: 0;
+  display: flex; align-items: center; gap: 4px;
+  padding: 6px 12px; border-radius: 999px;
+  background: rgba(255,255,255,.22); font-size: 12px; font-weight: 600;
+}
+.message-edit svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linejoin: round; }
+.message-text { margin-top: 12px; font-size: 16px; line-height: 1.5; font-weight: 500; overflow-wrap: anywhere; }
+
+.message-form textarea {
+  width: 100%; margin-top: 12px; resize: vertical;
+  font: inherit; font-size: 15px; line-height: 1.45; color: var(--navy);
+  padding: 10px 12px; border: none; border-radius: 14px; background: #fff;
+}
+.message-form textarea:focus { outline: 3px solid rgba(255,255,255,.5); }
+.message-actions { display: flex; align-items: center; gap: 6px; margin-top: 10px; }
+.message-actions small { margin-right: auto; font-size: 12px; opacity: .9; }
+.btn-light, .btn-white { font-size: 13px; font-weight: 600; padding: 7px 14px; border-radius: 999px; }
+.btn-light { background: rgba(255,255,255,.2); color: #fff; }
+.btn-white { background: #fff; color: var(--red); }
+
+.add-contact-card { margin-top: 14px; padding: 16px; }
+.section-title h3 { font-size: 16px; font-weight: 600; }
+.contact-form { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+.contact-form .wide { grid-column: 1 / -1; }
+.contact-form label { display: grid; gap: 2px; font-size: 11px; color: var(--muted); }
+.contact-form input, .contact-form select {
+  font: inherit; font-size: 13px; color: var(--navy); width: 100%;
+  padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; background: #f8fafc;
+}
+.contact-form input:focus, .contact-form select:focus { outline: 2px solid var(--blue-soft); border-color: var(--blue); }
+.contact-form .btn-primary { padding: 10px; margin-top: 2px; }
+
+.contacts-card { margin-top: 14px; padding: 16px 16px 8px; }
+.contacts-pill {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 13px 16px; border-radius: 999px;
+  background: linear-gradient(180deg, #4aa0f5 0%, var(--blue) 100%);
+  color: #fff; font-weight: 600; font-size: 15px;
+  box-shadow: 0 8px 18px rgba(47, 140, 240, 0.3);
+}
+.contacts-pill svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+.contacts-pill strong { min-width: 22px; height: 22px; padding: 0 6px; border-radius: 999px; background: #fff; color: var(--blue); font-size: 12px; display: grid; place-items: center; }
+
+.contact-list { list-style: none; margin-top: 8px; }
+.contact-list li { display: flex; align-items: center; gap: 10px; padding: 10px 2px; border-bottom: 1px solid var(--border); }
+.contact-list li:last-child { border-bottom: none; }
+.contact-avatar {
+  flex: 0 0 38px; height: 38px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--pink-soft); color: var(--pink); font-size: 13px; font-weight: 700;
+}
+.contact-text { flex: 1; min-width: 0; display: grid; }
+.contact-text strong { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.contact-text small { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.contact-call { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: var(--green-soft); }
+.contact-call svg { width: 17px; height: 17px; fill: none; stroke: var(--green); stroke-width: 2; stroke-linejoin: round; }
+
 /* ---------- Small screens: fill the viewport ---------- */
 @media (max-width: 420px) {
   body { padding: 0; background: #f4f8fb; }
