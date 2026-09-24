@@ -29,24 +29,19 @@
       <span class="icon-btn" aria-hidden="true"></span>
     </header>
 
-    <!-- Name -->
-    <section class="card name-card">
-      <div>
-        <p class="label">Name</p>
-        <h2 id="profile-name">Neha</h2>
-      </div>
-      <p class="connected"><span class="dot"></span>OJAS Band connected</p>
-    </section>
-
     <!-- Add info + photo -->
-    <section class="card info-card">
+    <section class="card info-card" id="info-card">
       <div class="info-head">
-        <h3>Personal Info</h3>
-        <p class="label">Your health details</p>
-        <button class="text-btn" id="edit-info" type="button">
-          <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
-          <span>Add info</span>
-        </button>
+        <div class="profile-name-row">
+          <h3 id="profile-name">Neha</h3>
+          <button class="icon-btn edit-profile-btn" id="edit-info" type="button" aria-label="Edit profile">
+            <svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16Z"/></svg>
+          </button>
+        </div>
+        <div class="profile-form-actions" id="profile-form-actions" hidden>
+          <button type="button" class="btn-ghost" id="cancel-info">Cancel</button>
+          <button type="submit" class="btn-primary" form="info-form">Save</button>
+        </div>
       </div>
 
       <label class="photo-box" aria-label="Upload profile photo">
@@ -73,10 +68,6 @@
         <label>Height (cm) <input name="height" type="number" min="0" inputmode="numeric" /></label>
         <label>Weight (kg) <input name="weight" type="number" min="0" inputmode="decimal" step="0.1" /></label>
         <label>Emergency contact <input name="emergency" type="tel" autocomplete="tel" /></label>
-        <div class="form-actions">
-          <button type="button" class="btn-ghost" id="cancel-info">Cancel</button>
-          <button type="submit" class="btn-primary">Save</button>
-        </div>
       </form>
     </section>
 
@@ -119,13 +110,6 @@
         </span>
         <strong>Today's Goals</strong>
         <small>3 of 5 done</small>
-      </a>
-      <a href="#" class="tile history">
-        <span class="tile-icon">
-          <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5M12 7v5l3 2"/></svg>
-        </span>
-        <strong>History</strong>
-        <small>Past readings</small>
       </a>
     </section>
   </main>

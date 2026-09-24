@@ -18,10 +18,12 @@
     ['emergency', 'Emergency contact', (v) => v],
   ];
 
-  const nameEl = document.getElementById('profile-name');
   const list = document.getElementById('info-list');
+  const nameEl = document.getElementById('profile-name');
   const form = document.getElementById('info-form');
   const editBtn = document.getElementById('edit-info');
+  const formActions = document.getElementById('profile-form-actions');
+  const infoCard = document.getElementById('info-card');
   let info = store.get('ojas.profile', { name: 'Neha' });
 
   function renderInfo() {
@@ -36,13 +38,13 @@
       else { dd.textContent = 'Not added'; dd.className = 'empty'; }
       list.append(dt, dd);
     });
-    editBtn.querySelector('span').textContent = filled ? 'Edit' : 'Add info';
   }
 
   function openForm(open) {
+    infoCard.classList.toggle('editing', open);
     form.hidden = !open;
     list.hidden = open;
-    editBtn.hidden = open;
+    formActions.hidden = !open;
     if (open) {
       Object.entries(info).forEach(([k, v]) => { if (form.elements[k]) form.elements[k].value = v; });
       form.elements.name.focus();
@@ -127,9 +129,7 @@
       const name = document.createElement(openable.has(doc.id) ? 'a' : 'strong');
       name.textContent = doc.name;
       if (openable.has(doc.id)) { name.href = openable.get(doc.id); name.target = '_blank'; name.rel = 'noopener'; }
-      const meta = document.createElement('small');
-      meta.textContent = `${formatSize(doc.size)} · ${new Date(doc.added).toLocaleDateString()}`;
-      text.append(name, meta);
+      text.append(name);
 
       const remove = document.createElement('button');
       remove.className = 'doc-remove';
