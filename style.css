@@ -220,7 +220,7 @@ svg { display: block; }
 .sos strong { font-size: 26px; font-weight: 700; letter-spacing: 1px; line-height: 1.1; }
 
 /* ---------- Quick actions ---------- */
-.actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 16px; }
+.actions { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 16px; }
 .action {
   display: flex;
   flex-direction: column;
@@ -303,6 +303,7 @@ svg { display: block; }
   grid-template-columns: 1fr 112px;
   gap: 14px;
   height: 330px;
+  overflow: hidden;
   padding: 16px;
   margin-top: 14px;
 }
@@ -310,7 +311,9 @@ svg { display: block; }
 .info-head { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
 .profile-name-row { display: flex; align-items: center; gap: 8px; }
 .info-head h3 { font-size: 24px; font-weight: 700; line-height: 1.2; }
-.profile-form-actions { display: flex; gap: 8px; margin-top: 8px; }
+.profile-form-actions { display: flex; gap: 4px; margin-left: 4px; }
+.profile-form-actions .btn-primary,
+.profile-form-actions .btn-ghost { font-size: 11px; padding: 4px 8px; }
 .edit-profile-btn { width: 28px; height: 28px; color: var(--blue); }
 .edit-profile-btn svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linejoin: round; }
 .info-list, .info-form { grid-column: 1 / -1; }
@@ -326,12 +329,12 @@ svg { display: block; }
 .info-list dd { font-weight: 600; text-align: right; overflow-wrap: anywhere; }
 .info-list dd.empty { font-weight: 400; color: #a9b4c2; }
 
-.info-form { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.info-form { display: grid; grid-template-columns: 1fr 1fr; gap: 3px 8px; margin-top: -6px; }
 .info-form label:first-child, .info-form label:last-child { grid-column: 1 / -1; }
-.info-form label { display: grid; gap: 2px; font-size: 11px; color: var(--muted); }
+.info-form label { display: grid; gap: 1px; font-size: 10px; color: var(--muted); }
 .info-form input, .info-form select {
-  font: inherit; font-size: 13px; color: var(--navy);
-  padding: 7px 10px; border: 1px solid var(--border); border-radius: 10px; background: #f8fafc;
+  font: inherit; font-size: 11px; color: var(--navy);
+  padding: 3px 8px; border: 1px solid var(--border); border-radius: 8px; background: #f8fafc;
   width: 100%;
 }
 .info-form input:focus, .info-form select:focus { outline: 2px solid var(--blue-soft); border-color: var(--blue); }
