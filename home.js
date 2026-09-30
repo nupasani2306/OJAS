@@ -1,8 +1,34 @@
 // Metrics carousel: horizontal scroll that loops endlessly in both directions.
 (function () {
+  const sos = document.querySelector('.sos');
   const track = document.querySelector('.metrics-track');
   const pager = document.querySelector('.pager');
   if (!track) return;
+
+  sos.addEventListener('click', async () => {
+    const message = (() => {
+      try {
+        return JSON.parse(localStorage.getItem('ojas.sosMessage')) || 'SOS! I need immediate help.';
+      } catch {
+        return 'SOS! I need immediate help.';
+      }
+    })();
+    const contacts = (() => {
+      try {
+        const saved = JSON.parse(localStorage.getItem('ojas.contactGroups'));
+        if (Array.isArray(saved?.sos)) return saved.sos;
+        return Array.isArray(saved) ? saved : [];
+      } catch { return []; }
+    })();
+    const recipients = contacts.map((contact) => `${contact.name}: ${contact.phone}`).join('\n');
+    const text = recipients ? `${message}\n\nEmergency contacts:\n${recipients}` : message;
+
+    if (navigator.share) {
+      try { await navigator.share({ title: 'OJAS SOS', text }); } catch { /* Share cancelled. */ }
+    } else {
+      alert(text);
+    }
+  });
 
   const originals = Array.from(track.children);
   const count = originals.length;

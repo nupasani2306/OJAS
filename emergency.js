@@ -9,10 +9,8 @@
     },
   };
 
-  // Name comes from the profile page.
   const profile = store.get('ojas.profile', { name: 'Neha' });
   const name = profile.name || 'Neha';
-  document.getElementById('user-name').textContent = name;
 
   /* ---------- Emergency message ---------- */
   const defaultMessage = () =>
@@ -52,56 +50,105 @@
     editing(false);
   });
 
+  /* ---------- SOS message ---------- */
+  const defaultSosMessage = () =>
+    `SOS! ${name} needs immediate help. Please check on me or call emergency services.`;
+  const sosText = document.getElementById('sos-message-text');
+  const sosForm = document.getElementById('sos-message-form');
+  const sosInput = document.getElementById('sos-message-input');
+  const sosCount = document.getElementById('sos-message-count');
+  const editSosBtn = document.getElementById('edit-sos-message');
+  let sosMessage = store.get('ojas.sosMessage', null) || defaultSosMessage();
+
+  const updateSosCount = () => { sosCount.textContent = `${sosInput.value.length}/${sosInput.maxLength}`; };
+  function editingSos(on) {
+    sosForm.hidden = !on;
+    sosText.hidden = on;
+    editSosBtn.hidden = on;
+    if (on) {
+      sosInput.value = sosMessage;
+      updateSosCount();
+      sosInput.focus();
+      sosInput.setSelectionRange(sosInput.value.length, sosInput.value.length);
+    }
+  }
+
+  sosText.textContent = sosMessage;
+  editSosBtn.addEventListener('click', () => editingSos(true));
+  document.getElementById('cancel-sos-message').addEventListener('click', () => editingSos(false));
+  document.getElementById('reset-sos-message').addEventListener('click', () => {
+    sosInput.value = defaultSosMessage();
+    updateSosCount();
+    sosInput.focus();
+  });
+  sosInput.addEventListener('input', updateSosCount);
+  sosForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    sosMessage = sosInput.value.trim() || defaultSosMessage();
+    store.set('ojas.sosMessage', sosMessage);
+    sosText.textContent = sosMessage;
+    editingSos(false);
+  });
+
   /* ---------- Contacts ---------- */
   const contactForm = document.getElementById('contact-form');
-  const list = document.getElementById('contact-list');
-  const empty = document.getElementById('contact-empty');
-  const counter = document.getElementById('contact-count');
-  let contacts = store.get('ojas.contacts', []);
+  const addContactToggle = document.getElementById('add-contact-toggle');
+  const contactGroups = (() => {
+    const saved = store.get('ojas.contactGroups', null);
+    if (saved) return {
+      emergency: Array.isArray(saved.emergency) ? saved.emergency : [],
+      sos: Array.isArray(saved.sos) ? saved.sos : [],
+    };
+    const legacy = store.get('ojas.contacts', []);
+    return { emergency: Array.isArray(legacy) ? legacy : [], sos: [] };
+  })();
+
+  addContactToggle.addEventListener('click', () => {
+    contactForm.hidden = !contactForm.hidden;
+    if (!contactForm.hidden) contactForm.elements.name.focus();
+  });
 
   const initials = (n) => n.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('');
 
-  function render() {
+  function renderContactList(type) {
+    const list = document.getElementById(`${type}-contact-list`);
+    const empty = document.getElementById(`${type}-contact-empty`);
     list.innerHTML = '';
-    empty.hidden = contacts.length > 0;
-    counter.textContent = contacts.length;
+    empty.hidden = contactGroups[type].length > 0;
 
-    contacts.forEach((c) => {
-      const li = document.createElement('li');
-
+    contactGroups[type].forEach((contact) => {
+      const item = document.createElement('li');
       const avatar = document.createElement('span');
       avatar.className = 'contact-avatar';
-      avatar.textContent = initials(c.name);
+      avatar.textContent = initials(contact.name);
 
       const info = document.createElement('div');
       info.className = 'contact-text';
-      const strong = document.createElement('strong');
-      strong.textContent = c.name;
-      const small = document.createElement('small');
-      small.textContent = `${c.relation} · ${c.phone}`;
-      info.append(strong, small);
-
-      const call = document.createElement('a');
-      call.className = 'contact-call';
-      call.href = `tel:${c.phone.replace(/[^\d+]/g, '')}`;
-      call.setAttribute('aria-label', `Call ${c.name}`);
-      call.innerHTML = '<svg viewBox="0 0 24 24"><path d="M5 3h4l2 5-2.5 1.5a11 11 0 0 0 6 6L16 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 5a2 2 0 0 1 2-2Z"/></svg>';
+      const name = document.createElement('strong');
+      name.textContent = contact.name;
+      const details = document.createElement('small');
+      details.textContent = `${contact.relation} · ${contact.phone}`;
+      info.append(name, details);
 
       const remove = document.createElement('button');
       remove.className = 'doc-remove';
       remove.type = 'button';
-      remove.setAttribute('aria-label', `Remove ${c.name}`);
+      remove.setAttribute('aria-label', `Remove ${contact.name}`);
       remove.innerHTML = '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg>';
       remove.addEventListener('click', () => {
-        if (!confirm(`Remove ${c.name} from your emergency contacts?`)) return;
-        contacts = contacts.filter((x) => x.id !== c.id);
-        store.set('ojas.contacts', contacts);
-        render();
+        contactGroups[type] = contactGroups[type].filter((item) => item.id !== contact.id);
+        store.set('ojas.contactGroups', contactGroups);
+        renderContactList(type);
       });
 
-      li.append(avatar, info, call, remove);
-      list.append(li);
+      item.append(avatar, info, remove);
+      list.append(item);
     });
+  }
+
+  function renderContacts() {
+    renderContactList('emergency');
+    renderContactList('sos');
   }
 
   // A phone number: only digits, spaces, +, -, ( ), with 6 to 15 digits.
@@ -117,16 +164,17 @@
       return;
     }
     const data = Object.fromEntries(new FormData(contactForm).entries());
-    contacts.push({
+    contactGroups[data.messageType].push({
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       name: data.name.trim(),
       relation: data.relation,
       phone: data.phone.trim(),
     });
-    store.set('ojas.contacts', contacts);
+    store.set('ojas.contactGroups', contactGroups);
     contactForm.reset();
-    render();
+    contactForm.hidden = true;
+    renderContacts();
   });
 
-  render();
+  renderContacts();
 })();

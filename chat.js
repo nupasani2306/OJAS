@@ -12,7 +12,6 @@
 
   const profile = store.get('ojas.profile', { name: 'Neha' });
   const name = profile.name || 'Neha';
-  document.getElementById('user-name').textContent = name;
 
   /* ---------- Replies ---------- */
 

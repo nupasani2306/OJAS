@@ -29,15 +29,6 @@
       <span class="icon-btn" aria-hidden="true"></span>
     </header>
 
-    <!-- Name -->
-    <section class="card name-card">
-      <div>
-        <p class="label">Name</p>
-        <h2 id="user-name">Neha</h2>
-      </div>
-      <p class="connected"><span class="dot"></span>OJAS Band connected</p>
-    </section>
-
     <!-- Emergency message (editable) -->
     <section class="message-card">
       <div class="message-head">
@@ -65,13 +56,51 @@
       </form>
     </section>
 
+    <!-- SOS message (editable) -->
+    <section class="message-card sos-message-card">
+      <div class="message-head">
+        <span class="message-icon">
+          <svg viewBox="0 0 24 24"><path d="M4 17h16M6 17V9l6-4 6 4v8M9 17v3h6v-3M12 8v4M12 14h.01"/></svg>
+        </span>
+        <h3>SOS message</h3>
+        <button class="message-edit" id="edit-sos-message" type="button">
+          <svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16Z"/></svg>
+          <span>Edit</span>
+        </button>
+      </div>
+
+      <p class="message-text" id="sos-message-text"></p>
+
+      <form class="message-form" id="sos-message-form" hidden>
+        <label for="sos-message-input" class="sr-only">SOS message</label>
+        <textarea id="sos-message-input" name="message" rows="5" maxlength="300"></textarea>
+        <div class="message-actions">
+          <small id="sos-message-count">0/300</small>
+          <button type="button" class="btn-light" id="reset-sos-message">Reset</button>
+          <button type="button" class="btn-light" id="cancel-sos-message">Cancel</button>
+          <button type="submit" class="btn-white">Save</button>
+        </div>
+      </form>
+    </section>
+
     <!-- Add contact -->
     <section class="card add-contact-card">
-      <div class="section-title">
-        <h3>Add a contact</h3>
-        <p class="label">People to reach in an emergency</p>
+      <div class="add-contact-toolbar">
+        <div class="section-title">
+          <h3>Add a contact</h3>
+          <p class="label">People to reach in an emergency</p>
+        </div>
+        <button class="upload-btn add-contact-btn" id="add-contact-toggle" type="button" aria-label="Add contact">
+          <svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0 1 12 0M17 8v6M14 11h6"/></svg>
+        </button>
       </div>
-      <form class="contact-form" id="contact-form">
+      <form class="contact-form" id="contact-form" hidden>
+        <label class="wide">Use for
+          <select name="messageType">
+            <option value="emergency">Emergency message</option>
+            <option value="sos">SOS message</option>
+          </select>
+        </label>
         <label>Name <input name="name" type="text" autocomplete="off" required /></label>
         <label>Relation
           <select name="relation">
@@ -84,19 +113,20 @@
           <span>Add contact</span>
         </button>
       </form>
-    </section>
-
-    <!-- Contact list -->
-    <section class="card contacts-card">
-      <div class="contacts-pill">
-        <svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M17 8.5a3 3 0 0 1 0 6M18.5 20a6 6 0 0 0-2.5-4.8"/></svg>
-        <span>Emergency Contact List</span>
-        <strong id="contact-count">0</strong>
+      <div class="contact-groups">
+        <div class="contact-group">
+          <h4>Emergency message contacts</h4>
+          <ul class="contact-list" id="emergency-contact-list"></ul>
+          <p class="doc-empty" id="emergency-contact-empty">No contacts yet.</p>
+        </div>
+        <div class="contact-group">
+          <h4>SOS message contacts</h4>
+          <ul class="contact-list" id="sos-contact-list"></ul>
+          <p class="doc-empty" id="sos-contact-empty">No contacts yet.</p>
+        </div>
       </div>
-
-      <ul class="contact-list" id="contact-list"></ul>
-      <p class="doc-empty" id="contact-empty">No contacts yet. Add someone above.</p>
     </section>
+
   </main>
 
   <script src="emergency.js"></script>
