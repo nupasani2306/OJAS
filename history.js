@@ -5,32 +5,26 @@
   const METRICS = {
     heart: {
       title: 'Heart Rate', unit: 'bpm', chart: 'line', summary: ['Average', 'Lowest', 'Highest'],
-      about: 'For most adults, a resting heart rate of 60–100 bpm is considered normal. Fitness, stress, caffeine and sleep can all move it.',
       format: (v) => `${Math.round(v)}`,
     },
     spo2: {
       title: 'Blood Oxygen (SpO₂)', unit: '%', chart: 'line', summary: ['Average', 'Lowest', 'Highest'],
-      about: 'SpO₂ is the share of oxygen-carrying haemoglobin in your blood. Readings of 95% or higher are usually normal.',
       format: (v) => `${Math.round(v)}`,
     },
     steps: {
       title: 'Steps', unit: 'steps', chart: 'bar', summary: ['Total', 'Daily average', 'Best day'],
-      about: 'Steps are counted by your OJAS Band throughout the day. Many people aim for 7,000–10,000 a day.',
       format: (v) => Math.round(v).toLocaleString(),
     },
     calories: {
       title: 'Calories', unit: 'kcal', chart: 'bar', summary: ['Total', 'Daily average', 'Best day'],
-      about: 'Active calories are the energy you burn through movement and exercise, on top of what your body uses at rest.',
       format: (v) => Math.round(v).toLocaleString(),
     },
     sleep: {
       title: 'Sleep', unit: '', chart: 'bar', summary: ['Average', 'Shortest', 'Longest'],
-      about: 'Most adults need 7–9 hours of sleep a night. A regular bedtime helps more than catching up at weekends.',
       format: (v) => `${Math.floor(v / 60)}h ${Math.round(v % 60)}m`, // value in minutes
     },
     water: {
       title: 'Water', unit: 'L', chart: 'bar', summary: ['Total', 'Daily average', 'Best day'],
-      about: 'Many adults need around 2–3 L of fluids a day, more in hot weather or when active.',
       format: (v) => (Math.round(v * 10) / 10).toFixed(1),
     },
   };
@@ -60,7 +54,6 @@
   const withUnit = (v) => (m.unit ? `${m.format(v)} ${m.unit}` : m.format(v));
 
   document.title = `OJAS – ${m.title} history`;
-  $('about-text').textContent = m.about;
   $('latest-unit').textContent = m.unit;
   m.summary.forEach((label, i) => { $(`sum-label-${i}`).textContent = label; });
 
