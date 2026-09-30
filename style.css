@@ -81,7 +81,8 @@ svg { display: block; }
 .sun { font-size: 24px; }
 .sub { color: var(--muted); font-size: 14px; margin-top: 2px; }
 
-.profile-btn { position: absolute; top: 20px; right: 18px; }
+.hero-actions { position: absolute; top: 20px; right: 18px; display: flex; align-items: center; gap: 12px; }
+.hero-actions .profile-btn { position: static; }
 .icon-btn svg { width: 22px; height: 22px; fill: none; stroke: var(--navy); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 
 /* ---------- Cards ---------- */
@@ -859,6 +860,83 @@ body[data-metric] .bm-stat strong { font-size: 19px; white-space: nowrap; }
 .hx-readings li { display: flex; justify-content: space-between; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
 .hx-readings li:last-child { border-bottom: none; }
 .hx-readings span { color: var(--muted); }
+
+/* ---------- Medical ID QR (home) ---------- */
+.qr-btn { display: grid; place-items: center; }
+
+.qr-sheet { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; padding: 16px; }
+.qr-panel {
+  position: relative; width: min(100%, 360px); max-height: calc(100vh - 32px); overflow-y: auto;
+  padding: 18px; border-radius: 24px; background: #fff;
+  box-shadow: 0 20px 50px rgba(27, 42, 74, .25);
+  display: grid; gap: 12px;
+}
+.qr-card {
+  display: grid; justify-items: center; text-align: center;
+  padding: 18px 16px 16px; border-radius: 20px;
+  background: linear-gradient(160deg, var(--blue-soft) 0%, #fff 70%);
+  border: 1px solid var(--border);
+}
+.qr-name { font-size: 20px; font-weight: 700; }
+.qr-sub { font-size: 12px; color: var(--muted); }
+.qr-code { min-width: 236px; min-height: 236px; margin: 12px 0 10px; padding: 6px; background: #fff; border-radius: 16px; box-shadow: var(--shadow); }
+.qr-code { display: grid; place-items: center; }
+.qr-code svg { display: block; }
+.qr-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
+.qr-chips span { padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 600; background: #fff; border: 1px solid var(--border); }
+
+.qr-warning { display: flex; gap: 8px; align-items: flex-start; padding: 10px 12px; border-radius: 12px; background: #fff7e6; font-size: 11px; line-height: 1.45; color: #7a5a14; }
+.qr-warning svg { flex: 0 0 16px; height: 16px; fill: none; stroke: #d98a0b; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.qr-note { font-size: 11px; color: var(--muted); text-align: center; }
+.qr-toggle { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.qr-toggle input { width: 16px; height: 16px; accent-color: var(--blue); }
+
+.qr-form { display: grid; gap: 8px; }
+.qr-form label { display: grid; gap: 2px; font-size: 11px; color: var(--muted); }
+.qr-form input {
+  font: inherit; font-size: 13px; color: var(--navy); width: 100%;
+  padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; background: #f8fafc;
+}
+.qr-form input:focus { outline: 2px solid var(--blue-soft); border-color: var(--blue); }
+.qr-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.qr-actions > * { text-align: center; padding: 10px 8px; }
+
+/* ---------- Medical ID page (opened by scanning) ---------- */
+.mc-page { padding-top: 18px; }
+.mc-banner {
+  display: flex; align-items: center; gap: 14px;
+  padding: 18px; border-radius: 22px; color: #fff;
+  background: linear-gradient(160deg, #ff6b6b 0%, var(--red) 100%);
+  box-shadow: 0 10px 24px rgba(239, 59, 59, 0.3);
+}
+.mc-badge { flex: 0 0 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; background: #fff; }
+.mc-badge svg { width: 26px; height: 26px; fill: var(--red); }
+.mc-kicker { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; opacity: .85; }
+.mc-banner h1 { font-size: 22px; font-weight: 700; line-height: 1.2; overflow-wrap: anywhere; }
+.mc-updated { font-size: 12px; opacity: .85; }
+
+.mc-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+.mc-fact { display: grid; padding: 12px 14px; border-radius: 16px; background: #fff; border: 1px solid var(--border); box-shadow: var(--shadow); }
+.mc-fact strong { font-size: 20px; font-weight: 700; }
+.mc-blood { background: var(--pink-soft); border-color: #fbd9e0; }
+.mc-blood strong { color: #c93a57; }
+
+.mc-details { margin-top: 14px; padding: 16px; }
+.mc-details dl { display: grid; gap: 4px; }
+.mc-details dt { font-size: 12px; color: var(--muted); margin-top: 6px; }
+.mc-details dt:first-child { margin-top: 0; }
+.mc-details dd { font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.mc-details dd.empty { font-weight: 400; color: #a9b4c2; }
+.mc-details dd.mc-alert { color: #c93a57; }
+
+.mc-contacts { margin-top: 14px; padding: 16px 16px 8px; }
+.mc-contacts h2 { font-size: 16px; font-weight: 600; }
+.mc-foot { margin-top: 14px; font-size: 11px; color: var(--muted); text-align: center; line-height: 1.5; }
+
+.mc-invalid { margin-top: 14px; padding: 28px 20px; text-align: center; display: grid; justify-items: center; gap: 6px; }
+.mc-invalid svg { width: 40px; height: 40px; fill: none; stroke: #b7c3d1; stroke-width: 1.8; stroke-linecap: round; }
+.mc-invalid h2 { font-size: 17px; }
+.mc-invalid p { font-size: 13px; color: var(--muted); }
 
 /* ---------- Small screens: fill the viewport ---------- */
 @media (max-width: 420px) {
