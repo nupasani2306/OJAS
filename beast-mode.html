@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OJAS – Beast Mode</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="phone">
+    <!-- Status bar -->
+    <div class="status-bar">
+      <span>9:41</span>
+      <span class="status-icons">
+        <svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5" width="3" height="7" rx="1"/><rect x="10" y="2" width="3" height="10" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg>
+        <svg viewBox="0 0 16 12"><path d="M8 11.5 5.6 9a3.4 3.4 0 0 1 4.8 0L8 11.5Zm-4-4.1a5.7 5.7 0 0 1 8 0l1.4-1.4a7.7 7.7 0 0 0-10.8 0L4 7.4ZM1.2 4.6a9.6 9.6 0 0 1 13.6 0L16 3.4a11.3 11.3 0 0 0-16 0l1.2 1.2Z"/></svg>
+        <span class="battery"><span></span></span>
+      </span>
+    </div>
+
+    <!-- Page header -->
+    <header class="page-header">
+      <a href="home.html" class="icon-btn" aria-label="Back to home">
+        <svg viewBox="0 0 24 24"><path d="m15 5-7 7 7 7"/></svg>
+      </a>
+      <h1>Beast Mode</h1>
+      <span class="bm-streak" id="streak" title="Workout streak">
+        <svg viewBox="0 0 24 24"><path d="M12 22a7 7 0 0 1-7-7c0-4 3-6 4-10 2 1.5 3 3.5 3 5.5 1-1 1.5-2.2 1.5-3.5C16 9 19 12 19 15a7 7 0 0 1-7 7Z"/></svg>
+        <strong id="streak-days">0</strong>
+      </span>
+    </header>
+
+    <!-- Weekly goal + start -->
+    <section class="bm-hero" id="hero">
+      <div class="bm-ring" id="goal-ring" role="img">
+        <svg viewBox="0 0 120 120" aria-hidden="true">
+          <circle class="bm-ring-track" cx="60" cy="60" r="50" />
+          <circle class="bm-ring-fill" id="goal-arc" cx="60" cy="60" r="50" />
+        </svg>
+        <div class="bm-ring-text">
+          <strong id="goal-done">0</strong>
+          <small>of <span id="goal-target">4</span></small>
+        </div>
+      </div>
+      <div class="bm-hero-text">
+        <p class="bm-kicker">Weekly goal</p>
+        <h2 id="hero-title">Let's get moving</h2>
+        <div class="bm-goal-edit">
+          <button type="button" id="goal-minus" aria-label="Lower weekly goal">−</button>
+          <span><span id="goal-value">4</span> workouts / week</span>
+          <button type="button" id="goal-plus" aria-label="Raise weekly goal">+</button>
+        </div>
+        <button class="bm-start" id="start-btn" type="button">
+          <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7Z"/></svg>
+          <span>Start workout</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- Active workout -->
+    <section class="card bm-active" id="active" hidden>
+      <div class="bm-active-head">
+        <div>
+          <p class="label" id="active-type">Strength</p>
+          <h3 id="active-name">Workout</h3>
+        </div>
+        <span class="bm-live" id="live-badge"><span class="dot"></span>Live</span>
+      </div>
+
+      <div class="bm-timer" id="timer" aria-live="off">00:00</div>
+
+      <div class="bm-controls">
+        <button type="button" class="btn-ghost" id="pause-btn">Pause</button>
+        <button type="button" class="btn-ghost bm-discard" id="discard-btn">Discard</button>
+        <button type="button" class="btn-primary" id="finish-btn">Finish</button>
+      </div>
+
+      <div class="bm-rest">
+        <span class="label">Rest timer</span>
+        <div class="bm-rest-btns" id="rest-btns">
+          <button type="button" data-rest="60">1:00</button>
+          <button type="button" data-rest="90">1:30</button>
+          <button type="button" data-rest="120">2:00</button>
+        </div>
+        <div class="bm-rest-live" id="rest-live" hidden>
+          <strong id="rest-time">1:00</strong>
+          <button type="button" id="rest-add">+15s</button>
+          <button type="button" id="rest-skip">Skip</button>
+        </div>
+      </div>
+
+      <label class="bm-distance" id="distance-row" hidden>
+        <span>Distance (km)</span>
+        <input type="number" id="distance-input" min="0" step="0.01" inputmode="decimal" placeholder="0.0" />
+      </label>
+
+      <div class="bm-exercises" id="exercises"></div>
+
+      <form class="bm-add-ex" id="add-ex-form">
+        <label for="ex-input" class="sr-only">Exercise name</label>
+        <input id="ex-input" list="ex-library" placeholder="Add exercise (e.g. Squat)" autocomplete="off" required />
+        <datalist id="ex-library"></datalist>
+        <button type="submit" class="btn-primary">Add</button>
+      </form>
+    </section>
+
+    <!-- Week stats -->
+    <section class="bm-stats">
+      <div class="bm-stat">
+        <span class="label">Workouts</span>
+        <strong id="stat-count">0</strong>
+        <small>this week</small>
+      </div>
+      <div class="bm-stat">
+        <span class="label">Active time</span>
+        <strong id="stat-minutes">0</strong>
+        <small>min this week</small>
+      </div>
+      <div class="bm-stat">
+        <span class="label">Burned</span>
+        <strong id="stat-kcal">0</strong>
+        <small>kcal this week</small>
+      </div>
+    </section>
+
+    <!-- Weekly activity chart -->
+    <section class="card bm-chart-card">
+      <div class="section-head">
+        <h3>Active minutes</h3>
+        <span class="label" id="chart-range">This week</span>
+      </div>
+      <div class="bm-chart" id="chart" role="img"></div>
+      <div class="bm-tooltip" id="chart-tip" hidden></div>
+      <table class="sr-only" id="chart-table">
+        <caption>Active minutes per day this week</caption>
+        <thead><tr><th>Day</th><th>Minutes</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <!-- Personal records -->
+    <section class="card bm-list-card">
+      <div class="section-head">
+        <h3>Personal records</h3>
+        <span class="label">Heaviest set</span>
+      </div>
+      <ul class="bm-prs" id="pr-list"></ul>
+      <p class="doc-empty" id="pr-empty">Log a set with weight to see your records.</p>
+    </section>
+
+    <!-- History -->
+    <section class="card bm-list-card">
+      <div class="section-head">
+        <h3>History</h3>
+        <span class="label" id="history-count">0 workouts</span>
+      </div>
+      <ul class="bm-history" id="history-list"></ul>
+      <p class="doc-empty" id="history-empty">No workouts yet. Start one above!</p>
+    </section>
+
+    <!-- Start workout sheet -->
+    <div class="bm-sheet" id="start-sheet" hidden>
+      <button class="modal-backdrop" id="sheet-backdrop" type="button" aria-label="Close"></button>
+      <form class="bm-sheet-panel" id="start-form" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+        <div class="docs-dialog-header">
+          <h2 id="sheet-title">Start a workout</h2>
+          <button class="modal-close" id="sheet-close" type="button" aria-label="Close">
+            <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg>
+          </button>
+        </div>
+        <fieldset class="bm-types" id="type-options">
+          <legend class="label">Type</legend>
+        </fieldset>
+        <label class="bm-field">
+          <span class="label">Name (optional)</span>
+          <input name="name" type="text" maxlength="40" placeholder="e.g. Leg day" autocomplete="off" />
+        </label>
+        <button type="submit" class="bm-start bm-start-wide">
+          <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7Z"/></svg>
+          <span>Start</span>
+        </button>
+      </form>
+    </div>
+  </main>
+
+  <script src="beast-mode.js"></script>
+</body>
+</html>
