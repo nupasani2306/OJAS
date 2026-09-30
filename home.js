@@ -38,6 +38,7 @@
   const clone = (card) => {
     const copy = card.cloneNode(true);
     copy.setAttribute('aria-hidden', 'true');
+    copy.setAttribute('tabindex', '-1'); // clones are decoration; keep them out of keyboard focus
     return copy;
   };
   originals.forEach((card) => track.append(clone(card)));
