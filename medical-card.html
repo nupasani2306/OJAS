@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex" />
+  <title>OJAS – Medical ID</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="phone mc-page">
+    <!-- Banner -->
+    <header class="mc-banner">
+      <span class="mc-badge">
+        <svg viewBox="0 0 24 24"><path d="M9 3h6v6h6v6h-6v6H9v-6H3V9h6Z"/></svg>
+      </span>
+      <div>
+        <p class="mc-kicker">OJAS · Medical ID</p>
+        <h1 id="mc-name">Medical information</h1>
+        <p class="mc-updated" id="mc-updated"></p>
+      </div>
+    </header>
+
+    <div id="mc-content" hidden>
+      <!-- Key facts -->
+      <section class="mc-facts">
+        <div class="mc-fact mc-blood"><span class="label">Blood group</span><strong id="mc-blood">—</strong></div>
+        <div class="mc-fact"><span class="label">Age</span><strong id="mc-age">—</strong></div>
+        <div class="mc-fact"><span class="label">Height</span><strong id="mc-height">—</strong></div>
+        <div class="mc-fact"><span class="label">Weight</span><strong id="mc-weight">—</strong></div>
+      </section>
+
+      <!-- Medical details -->
+      <section class="card mc-details">
+        <dl id="mc-details"></dl>
+      </section>
+
+      <!-- Emergency contacts -->
+      <section class="card mc-contacts" id="mc-contacts-card" hidden>
+        <h2>Emergency contacts</h2>
+        <ul class="contact-list" id="mc-contacts"></ul>
+      </section>
+
+      <p class="mc-foot">Shared by the owner from the OJAS app. Details may be out of date; confirm with the person or their contacts when possible.</p>
+    </div>
+
+    <section class="card mc-invalid" id="mc-invalid" hidden>
+      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14 14l7 7M21 14l-7 7"/></svg>
+      <h2>No medical info found</h2>
+      <p>This link is incomplete. Scan the Medical ID QR code in the owner's OJAS app again.</p>
+    </section>
+  </main>
+
+  <script src="medical-card.js"></script>
+</body>
+</html>

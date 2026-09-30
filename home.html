@@ -27,9 +27,14 @@
         <h1>Neha</h1>
       </div>
 
-      <a class="icon-btn profile-btn" href="profile.html" aria-label="Profile">
-        <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>
-      </a>
+      <div class="hero-actions">
+        <button class="icon-btn qr-btn" id="open-qr" type="button" aria-label="Show my medical QR code">
+          <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 20h4v-3"/></svg>
+        </button>
+        <a class="icon-btn profile-btn" href="profile.html" aria-label="Profile">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>
+        </a>
+      </div>
     </header>
 
     <!-- Device card -->
@@ -121,8 +126,58 @@
       <svg viewBox="0 0 24 24"><rect x="4" y="7" width="16" height="12" rx="4"/><path d="M12 3v4M9 12h.01M15 12h.01M9.5 15.5h5"/></svg>
     </a>
 
+
+    <!-- Medical QR sheet -->
+    <div class="qr-sheet" id="qr-sheet" hidden>
+      <button class="modal-backdrop" id="qr-backdrop" type="button" aria-label="Close"></button>
+      <section class="qr-panel" role="dialog" aria-modal="true" aria-labelledby="qr-title">
+        <div class="docs-dialog-header">
+          <h2 id="qr-title">My Medical ID</h2>
+          <button class="modal-close" id="qr-close" type="button" aria-label="Close">
+            <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg>
+          </button>
+        </div>
+
+        <div class="qr-card">
+          <p class="qr-name" id="qr-name">Neha</p>
+          <p class="qr-sub">Scan to view medical info</p>
+          <div class="qr-code" id="qr-code" role="img" aria-label="QR code with a link to your medical info"></div>
+          <div class="qr-chips" id="qr-chips"></div>
+        </div>
+
+        <p class="qr-warning">
+          <svg viewBox="0 0 24 24"><path d="M12 3 2 20h20Z"/><path d="M12 10v4M12 17h.01"/></svg>
+          <span>Anyone who scans this code can see these details. Only show it when you want to share them.</span>
+        </p>
+        <p class="qr-note" id="qr-host-note" hidden>Scanning from another phone works once OJAS is hosted online. On this computer it only opens locally.</p>
+
+        <label class="qr-toggle">
+          <input type="checkbox" id="qr-include-contacts" checked />
+          <span>Include emergency contacts</span>
+        </label>
+
+        <form class="qr-form" id="qr-form" hidden>
+          <label>Allergies <input name="allergies" type="text" maxlength="120" placeholder="e.g. Penicillin, peanuts" /></label>
+          <label>Medical conditions <input name="conditions" type="text" maxlength="120" placeholder="e.g. Asthma" /></label>
+          <label>Medications <input name="medications" type="text" maxlength="120" placeholder="e.g. Inhaler as needed" /></label>
+          <label>Notes for responders <input name="notes" type="text" maxlength="160" placeholder="e.g. Organ donor" /></label>
+          <div class="form-actions">
+            <button type="button" class="btn-ghost" id="qr-form-cancel">Cancel</button>
+            <button type="submit" class="btn-primary">Save</button>
+          </div>
+        </form>
+
+        <div class="qr-actions" id="qr-actions">
+          <button type="button" class="btn-ghost" id="qr-edit">Edit info</button>
+          <a class="btn-ghost" id="qr-preview" href="medical-card.html" target="_blank" rel="noopener">Preview</a>
+          <button type="button" class="btn-primary" id="qr-share">Share</button>
+        </div>
+      </section>
+    </div>
   </main>
 
   <script src="home.js"></script>
+  <script src="vendor/qrcode.js"></script>
+  <script src="medical-qr.js"></script>
 </body>
 </html>
