@@ -40,9 +40,12 @@ svg { display: block; }
   background: linear-gradient(180deg, #e9f6f7 0%, #f4f8fb 32%, #f6f9fc 100%);
   border-radius: 40px;
   box-shadow: 0 20px 60px rgba(27, 42, 74, 0.25);
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto; /* fixed-height frame: longer pages scroll inside it */
+  scrollbar-width: none;
   padding: 0 18px 32px;
 }
+.phone::-webkit-scrollbar { display: none; }
 
 .status-bar {
   display: flex;
@@ -809,6 +812,66 @@ svg { display: block; }
 .bm-type input:focus-visible + span { outline: 2px solid var(--blue); }
 .bm-field { display: grid; gap: 4px; }
 .bm-start-wide { width: 100%; margin-top: 0; padding: 13px; font-size: 15px; }
+
+/* ---------- Metric history pages ---------- */
+a.metric { cursor: pointer; }
+a.metric:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
+
+.hx-heart    { --tint: var(--pink);  --bg: var(--pink-soft); }
+.hx-spo2     { --tint: var(--blue);  --bg: var(--blue-soft); }
+.hx-steps    { --tint: var(--green); --bg: var(--green-soft); }
+.hx-calories { --tint: #f7762b;      --bg: #fff1e8; }
+.hx-sleep    { --tint: #7c5cf0;      --bg: #f1edff; }
+.hx-water    { --tint: #2f9cf0;      --bg: #e8f5ff; }
+
+.page-header h1 sub { font-size: .6em; }
+
+.hx-hero {
+  display: flex; align-items: center; gap: 16px;
+  padding: 18px; border-radius: 22px;
+  background: linear-gradient(160deg, #fff 0%, var(--bg) 100%);
+  border: 1px solid var(--border); box-shadow: var(--shadow);
+}
+.hx-icon { flex: 0 0 56px; height: 56px; border-radius: 18px; display: grid; place-items: center; background: #fff; box-shadow: var(--shadow); }
+.hx-icon svg { width: 28px; height: 28px; fill: var(--tint); }
+.hx-latest strong { font-size: 34px; font-weight: 700; line-height: 1.1; }
+.hx-latest small { font-size: 14px; color: var(--muted); }
+.hx-synced { font-size: 12px; color: var(--muted); }
+
+.hx-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-top: 14px; padding: 4px; border-radius: 999px; background: #e9eef5; }
+.hx-tabs button { padding: 8px; border-radius: 999px; font-size: 13px; font-weight: 600; color: var(--muted); }
+.hx-tabs button.is-active { background: #fff; color: var(--navy); box-shadow: var(--shadow); }
+
+.hx-chart-card { margin-top: 14px; padding: 16px; }
+.hx-chart-wrap { position: relative; }
+.hx-chart { width: 100%; height: auto; overflow: visible; }
+.hx-grid { stroke: #edf1f6; stroke-width: 1; }
+.hx-axis { stroke: #d9e1ea; stroke-width: 1; }
+.hx-tick { font-size: 9px; fill: var(--muted); font-family: inherit; }
+.hx-bar { fill: var(--tint); }
+.hx-line { fill: none; stroke: var(--tint); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.hx-dot { fill: var(--tint); stroke: #fff; stroke-width: 2; }
+.hx-hit { fill: transparent; outline: none; }
+.hx-hit:focus-visible { stroke: var(--blue); stroke-width: 1.5; }
+.hx-empty {
+  position: absolute; inset: 0 0 22px 30px;
+  display: grid; place-content: center; justify-items: center; gap: 6px; text-align: center;
+  padding: 12px; border: 1.5px dashed #d6dee8; border-radius: 12px; background: rgba(255,255,255,.7);
+}
+.hx-empty svg { width: 28px; height: 28px; fill: none; stroke: #b7c3d1; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.hx-empty p { font-size: 12px; color: var(--muted); max-width: 200px; }
+
+.hx-about { margin-top: 14px; padding: 16px; }
+.hx-about h3 { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+.hx-about p { font-size: 13px; color: var(--muted); line-height: 1.5; }
+
+body[data-metric] .bm-stat strong { font-size: 19px; white-space: nowrap; }
+.hx-unit { font-size: 11px; font-weight: 500; color: var(--muted); }
+
+.hx-readings { list-style: none; }
+.hx-readings li { display: flex; justify-content: space-between; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.hx-readings li:last-child { border-bottom: none; }
+.hx-readings span { color: var(--muted); }
 
 /* ---------- Small screens: fill the viewport ---------- */
 @media (max-width: 420px) {

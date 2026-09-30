@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OJAS – Heart Rate history</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body data-metric="heart">
+  <main class="phone">
+    <!-- Status bar -->
+    <div class="status-bar">
+      <span>9:41</span>
+      <span class="status-icons">
+        <svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5" width="3" height="7" rx="1"/><rect x="10" y="2" width="3" height="10" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg>
+        <svg viewBox="0 0 16 12"><path d="M8 11.5 5.6 9a3.4 3.4 0 0 1 4.8 0L8 11.5Zm-4-4.1a5.7 5.7 0 0 1 8 0l1.4-1.4a7.7 7.7 0 0 0-10.8 0L4 7.4ZM1.2 4.6a9.6 9.6 0 0 1 13.6 0L16 3.4a11.3 11.3 0 0 0-16 0l1.2 1.2Z"/></svg>
+        <span class="battery"><span></span></span>
+      </span>
+    </div>
+
+    <!-- Page header -->
+    <header class="page-header">
+      <a href="home.html" class="icon-btn" aria-label="Back to home">
+        <svg viewBox="0 0 24 24"><path d="m15 5-7 7 7 7"/></svg>
+      </a>
+      <h1>Heart Rate History</h1>
+      <span class="icon-btn" aria-hidden="true"></span>
+    </header>
+
+    <!-- Latest value -->
+    <section class="hx-hero hx-heart">
+      <span class="hx-icon"><svg viewBox="0 0 24 24"><path d="M12 21s-8-5.2-8-11.2A4.6 4.6 0 0 1 12 7a4.6 4.6 0 0 1 8 2.8C20 15.8 12 21 12 21Z"/></svg></span>
+      <div>
+        <p class="label">Latest</p>
+        <p class="hx-latest"><strong id="latest-value">—</strong> <small id="latest-unit"></small></p>
+        <p class="hx-synced" id="latest-time">Waiting for your OJAS Band to sync</p>
+      </div>
+    </section>
+
+    <!-- Range -->
+    <div class="hx-tabs" role="tablist" aria-label="Time range">
+      <button type="button" role="tab" data-range="day" aria-selected="false">Day</button>
+      <button type="button" role="tab" data-range="week" aria-selected="true" class="is-active">Week</button>
+      <button type="button" role="tab" data-range="month" aria-selected="false">Month</button>
+    </div>
+
+    <!-- Chart -->
+    <section class="card hx-chart-card hx-heart">
+      <div class="section-head">
+        <h3>Heart Rate</h3>
+        <span class="label" id="chart-title">This week</span>
+      </div>
+      <div class="hx-chart-wrap">
+        <svg class="hx-chart" id="chart" viewBox="0 0 320 160" role="img" aria-label="No data yet"></svg>
+        <div class="hx-empty" id="chart-empty">
+          <svg viewBox="0 0 24 24"><path d="M4 19V5M4 19h16M8 15l3-4 3 2 4-6"/></svg>
+          <p id="chart-empty-text">No data yet. Readings will appear here once your band syncs.</p>
+        </div>
+        <div class="bm-tooltip" id="chart-tip" hidden></div>
+      </div>
+    </section>
+
+    <!-- Summary -->
+    <section class="bm-stats">
+      <div class="bm-stat"><span class="label" id="sum-label-0">Average</span><strong id="sum-0">—</strong></div>
+      <div class="bm-stat"><span class="label" id="sum-label-1">Lowest</span><strong id="sum-1">—</strong></div>
+      <div class="bm-stat"><span class="label" id="sum-label-2">Highest</span><strong id="sum-2">—</strong></div>
+    </section>
+
+    <!-- About -->
+    <section class="card hx-about">
+      <h3>About Heart Rate</h3>
+      <p id="about-text"></p>
+    </section>
+
+    <!-- Readings -->
+    <section class="card bm-list-card">
+      <div class="section-head">
+        <h3>Readings</h3>
+      </div>
+      <ul class="hx-readings" id="readings"></ul>
+      <p class="doc-empty" id="readings-empty">No readings yet.</p>
+    </section>
+  </main>
+
+  <script src="history.js"></script>
+</body>
+</html>
