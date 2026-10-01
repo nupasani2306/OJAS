@@ -1,45 +1,48 @@
 from flask import Flask, jsonify
 from flask_cors import CORS
-from dotenv import load_dotenv
-from supabase import create_client
-import os
+
+from config import supabase
 
 # --------------------------------------------------
-# Load environment variables
+# ROUTES
 # --------------------------------------------------
 
-load_dotenv()
+from routes.auth import auth_bp
+from routes.profile import profile_bp
+from routes.medical import medical_bp
+from routes.documents import documents_bp
+from routes.emergency import emergency_bp
+from routes.devices import devices_bp
+from routes.health import health_bp
+from routes.sleep import sleep_bp
+from routes.workouts import workouts_bp
+from routes.chat import chat_bp
 
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
-# --------------------------------------------------
-# Check Supabase configuration
-# --------------------------------------------------
-
-if not SUPABASE_URL:
-    raise ValueError("SUPABASE_URL is missing from .env")
-
-if not SUPABASE_KEY:
-    raise ValueError("SUPABASE_KEY is missing from .env")
-
-# --------------------------------------------------
-# Create Supabase client
-# --------------------------------------------------
-
-supabase = create_client(
-    SUPABASE_URL,
-    SUPABASE_KEY
-)
-
-# --------------------------------------------------
-# Create Flask application
-# --------------------------------------------------
+# ==================================================
+# CREATE FLASK APPLICATION
+# ==================================================
 
 app = Flask(__name__)
 
-# Allow Flutter/frontend to communicate with Flask
+# Allow Flutter / frontend to communicate with Flask
 CORS(app)
+
+
+# ==================================================
+# REGISTER BLUEPRINTS
+# ==================================================
+
+app.register_blueprint(auth_bp)
+app.register_blueprint(profile_bp)
+app.register_blueprint(medical_bp)
+app.register_blueprint(documents_bp)
+app.register_blueprint(emergency_bp)
+app.register_blueprint(devices_bp)
+app.register_blueprint(health_bp)
+app.register_blueprint(sleep_bp)
+app.register_blueprint(workouts_bp)
+app.register_blueprint(chat_bp)
 
 
 # ==================================================
