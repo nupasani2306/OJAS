@@ -1,43 +1,54 @@
 from flask import Flask, jsonify
-from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
-from flask_jwt_extended import JWTManager
+from dotenv import load_dotenv
+from supabase import create_client
 import os
+
+# --------------------------------------------------
+# Load environment variables
+# --------------------------------------------------
+
+load_dotenv()
+
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+
+# --------------------------------------------------
+# Check Supabase configuration
+# --------------------------------------------------
+
+if not SUPABASE_URL:
+    raise ValueError("SUPABASE_URL is missing from .env")
+
+if not SUPABASE_KEY:
+    raise ValueError("SUPABASE_KEY is missing from .env")
+
+# --------------------------------------------------
+# Create Supabase client
+# --------------------------------------------------
+
+supabase = create_client(
+    SUPABASE_URL,
+    SUPABASE_KEY
+)
+
+# --------------------------------------------------
+# Create Flask application
+# --------------------------------------------------
 
 app = Flask(__name__)
 
-# -----------------------------
-# Configuration
-# -----------------------------
-
-app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv(
-    "DATABASE_URL",
-    "postgresql://postgres:YOUR_PASSWORD@localhost:5432/ojas_db"
-)
-
-app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-
-app.config["JWT_SECRET_KEY"] = os.getenv(
-    "JWT_SECRET_KEY",
-    "ojas_secret_key_change_this"
-)
-
-# -----------------------------
-# Initialize extensions
-# -----------------------------
-
-db = SQLAlchemy(app)
-jwt = JWTManager(app)
-
+# Allow Flutter/frontend to communicate with Flask
 CORS(app)
 
 
-# -----------------------------
-# Home / API test
-# -----------------------------
+# ==================================================
+# HOME
+# ==================================================
 
 @app.route("/")
 def home():
+
     return jsonify({
         "project": "OJAS",
         "message": "OJAS Backend is Running!",
@@ -45,34 +56,41 @@ def home():
     })
 
 
-# -----------------------------
-# Backend health check
-# -----------------------------
+# ==================================================
+# BACKEND HEALTH CHECK
+# ==================================================
 
 @app.route("/api/health")
 def backend_health():
 
     return jsonify({
         "backend": "online",
-        "database": "configured",
+        "database": "Supabase",
         "project": "OJAS"
     })
 
 
-# -----------------------------
-# Database connection test
-# -----------------------------
+# ==================================================
+# SUPABASE CONNECTION TEST
+# ==================================================
 
-@app.route("/api/test-db")
-def test_database():
+@app.route("/api/test-supabase")
+def test_supabase():
 
     try:
 
-        db.session.execute(db.text("SELECT 1"))
+        response = (
+            supabase
+            .table("user_profiles")
+            .select("*")
+            .limit(1)
+            .execute()
+        )
 
         return jsonify({
             "status": "success",
-            "message": "PostgreSQL connected successfully!"
+            "message": "Flask connected to Supabase successfully!",
+            "data": response.data
         })
 
     except Exception as e:
@@ -83,11 +101,12 @@ def test_database():
         }), 500
 
 
-# -----------------------------
-# Run server
-# -----------------------------
+# ==================================================
+# RUN SERVER
+# ==================================================
 
 if __name__ == "__main__":
+
     app.run(
         host="127.0.0.1",
         port=5000,
