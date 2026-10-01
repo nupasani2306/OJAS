@@ -7,6 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
+  <script src="auth-guard.js"></script>
 </head>
 <body>
   <main class="phone">
@@ -24,7 +25,7 @@
     <header class="hero">
       <div class="hero-text">
         <p class="greet">Good morning,</p>
-        <h1>Neha</h1>
+        <h1 data-user-name>Neha</h1>
       </div>
 
       <div class="hero-actions">
@@ -42,7 +43,7 @@
       <div class="band" aria-hidden="true"><span></span></div>
       <div class="device-info">
         <h2>OJAS Band <svg class="link" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg></h2>
-        <p class="connected"><span class="dot"></span>Connected</p>
+        <p class="connected" id="device-status"><span class="dot"></span>Connected</p>
       </div>
       <div class="device-battery">
         <strong>82%</strong>
