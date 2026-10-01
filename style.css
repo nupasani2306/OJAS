@@ -938,6 +938,85 @@ body[data-metric] .bm-stat strong { font-size: 19px; white-space: nowrap; }
 .mc-invalid h2 { font-size: 17px; }
 .mc-invalid p { font-size: 13px; color: var(--muted); }
 
+/* ---------- Sign in / sign up ---------- */
+.auth-brand { display: grid; justify-items: center; text-align: center; gap: 2px; padding: 34px 0 20px; }
+.auth-logo {
+  width: 64px; height: 64px; border-radius: 20px; display: grid; place-items: center; margin-bottom: 8px;
+  background: linear-gradient(160deg, #4aa0f5 0%, var(--blue) 100%); box-shadow: 0 10px 24px rgba(47, 140, 240, 0.3);
+}
+.auth-logo svg { width: 34px; height: 34px; fill: none; stroke: #fff; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.auth-brand h1 { font-size: 28px; font-weight: 700; letter-spacing: 2px; }
+.auth-brand p { font-size: 14px; color: var(--muted); }
+
+.auth-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border-radius: 999px; background: #e9eef5; margin-bottom: 14px; }
+.auth-tabs button { padding: 10px; border-radius: 999px; font-size: 14px; font-weight: 600; color: var(--muted); }
+.auth-tabs button.is-active { background: #fff; color: var(--navy); box-shadow: var(--shadow); }
+
+.auth-form { display: grid; gap: 12px; padding: 18px; }
+.auth-field { display: grid; gap: 4px; font-size: 12px; font-weight: 500; color: var(--muted); }
+.auth-field small { font-weight: 400; }
+.auth-field input {
+  font: inherit; font-size: 15px; color: var(--navy); width: 100%;
+  padding: 11px 12px; border: 1px solid var(--border); border-radius: 12px; background: #f8fafc;
+}
+.auth-field input:focus { outline: 2px solid var(--blue-soft); border-color: var(--blue); }
+.auth-field input[aria-invalid="true"] { border-color: var(--red); background: var(--pink-soft); }
+.auth-password { position: relative; display: block; }
+.auth-password input { padding-right: 64px; }
+.auth-show { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); padding: 6px 10px; border-radius: 8px; font-size: 12px; font-weight: 600; color: var(--blue); }
+.auth-link { justify-self: end; font-size: 12px; font-weight: 600; color: var(--blue); margin-top: -4px; }
+.auth-skip { justify-self: center; margin-top: 0; }
+
+.auth-check { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--navy); }
+.auth-check input { width: 18px; height: 18px; accent-color: var(--blue); }
+
+.auth-device { padding: 12px; border-radius: 14px; background: var(--blue-soft); border: 1px solid #cfe2fb; }
+.auth-device.is-off { opacity: .45; }
+.auth-code { display: flex; align-items: stretch; }
+.auth-code-prefix {
+  display: grid; place-items: center; padding: 0 10px; border-radius: 12px 0 0 12px;
+  background: #fff; border: 1px solid var(--border); border-right: none;
+  font-size: 15px; font-weight: 700; color: var(--blue); letter-spacing: 1px;
+}
+.auth-code input { border-radius: 0 12px 12px 0; background: #fff; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; }
+.auth-code input::placeholder { color: #b7c3d1; letter-spacing: 2px; }
+.auth-hint { font-size: 11px; color: var(--muted); }
+.auth-connect-title { font-size: 17px; font-weight: 600; }
+
+.auth-error { font-size: 12px; font-weight: 500; color: #b4233f; background: var(--pink-soft); padding: 8px 12px; border-radius: 10px; }
+.auth-submit {
+  padding: 13px; border-radius: 999px; font-size: 15px; font-weight: 600; color: #fff;
+  background: linear-gradient(180deg, #4aa0f5 0%, var(--blue) 100%); box-shadow: 0 8px 18px rgba(47, 140, 240, 0.3);
+}
+.auth-submit:disabled { opacity: .6; cursor: default; }
+.auth-demo { margin-top: 14px; font-size: 11px; color: var(--muted); text-align: center; line-height: 1.5; }
+
+.auth-pairing { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; padding: 24px; background: rgba(27, 42, 74, .38); }
+.auth-pairing-card { width: min(100%, 320px); display: grid; justify-items: center; gap: 8px; text-align: center; padding: 28px 22px; border-radius: 24px; background: #fff; box-shadow: 0 20px 50px rgba(27, 42, 74, .25); }
+.auth-pairing-card strong { font-size: 17px; }
+.auth-pairing-card small { font-size: 13px; color: var(--muted); }
+.auth-pairing-card .auth-submit { width: 100%; margin-top: 8px; }
+.auth-spinner { width: 48px; height: 48px; border-radius: 50%; border: 4px solid var(--blue-soft); border-top-color: var(--blue); animation: auth-spin .9s linear infinite; }
+@keyframes auth-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .auth-spinner { animation-duration: 3s; } }
+.auth-tick { width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; background: var(--green); }
+.auth-tick svg { width: 28px; height: 28px; fill: none; stroke: #fff; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+
+/* Home device card when no band is paired */
+.connected.is-off { color: var(--muted); }
+.connected.is-off .dot { background: #c9d3de; }
+.device-info { min-width: 0; }
+.device-info h2, .connected.is-off { white-space: nowrap; }
+.device-connect { flex-shrink: 0; padding: 8px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; color: #fff; background: var(--blue); white-space: nowrap; }
+
+/* Profile sign out */
+.sign-out-btn {
+  width: 100%; margin-top: 14px; display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 13px; border-radius: 16px; font-weight: 600; color: var(--red);
+  background: #fff; border: 1px solid var(--border); box-shadow: var(--shadow);
+}
+.sign-out-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
 /* ---------- Small screens: fill the viewport ---------- */
 @media (max-width: 420px) {
   body { padding: 0; background: #f4f8fb; }
