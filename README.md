@@ -151,24 +151,15 @@ automatically; on older phones, test on the laptop or shorten the JSON in the fi
 
 | Trigger | What happens |
 |---|---|
-| SOS from the band, or the SOS button in the app | The SOS message is sent straight away to the **SOS contacts** (no confirmation). |
+| SOS from the band, or the SOS button in the app | The SOS message to the **SOS contacts** opens straight away in the phone's Messages app (no confirmation). |
 | `FALL_PENDING` from the band | A 10-second countdown with **Cancel emergency**. Cancel → nothing is sent (the band is told `CANCEL`). |
-| Countdown ends, or `FALL` from the band | The emergency message is sent to the **emergency contacts**. |
-| The same alert repeated | Ignored: each emergency is sent once. |
+| Countdown ends, or `FALL` from the band | The emergency message to the **emergency contacts** opens in Messages. |
+| The same alert repeated | Ignored: each emergency is handled once. |
 
-The Flask backend sends the SMS (`POST /api/emergency/events/<id>/notify`) using **Twilio**.
-Add these to `.env` (never commit them):
-
-```
-TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-TWILIO_AUTH_TOKEN=your-auth-token
-TWILIO_FROM_NUMBER=+1xxxxxxxxxx
-SMS_DEFAULT_COUNTRY_CODE=+91
-```
-
-A Twilio **trial** account only sends to numbers you have verified in the Twilio console.
-Without these settings the app opens the phone's Messages app with the contacts and message
-filled in instead (one tap on Send).
+The backend builds the message (saved SOS / emergency message, or the default, plus a map link)
+and picks the contacts (`GET /api/emergency/events/<id>/message`). A web page cannot send an SMS
+by itself, so the person taps **Send** in Messages. If the phone blocks opening Messages
+automatically, the alert shows an **Open Messages** button.
 
 ## 🔑 Forgot password
 

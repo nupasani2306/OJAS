@@ -415,15 +415,14 @@ const ojasBand = (() => {
 /* ==========================================================================
    Emergency alerts: SOS and falls, from the band, the SOS button and the server.
 
-   SOS          → the SOS message goes straight to the SOS contacts (no confirmation).
+   SOS          → the SOS message to the SOS contacts opens straight away (no confirmation).
    FALL_PENDING → warning with a countdown and "Cancel emergency"; if nobody cancels, the
                   emergency message goes to the emergency contacts when the countdown ends.
-   FALL         → (the band's own countdown ended) send the emergency message now.
+   FALL         → (the band's own countdown ended) open the emergency message now.
    CANCELLED    → the fall was cancelled on the band: stop the countdown.
 
-   Sending: the event is saved (/api/emergency/events) and the server sends the SMS
-   (/api/emergency/events/<id>/notify). Each event is sent at most once. If the server cannot
-   send SMS (not set up), the phone's Messages app is opened with the same text instead.
+   Sending: the event is saved (/api/emergency/events), the server returns the message and the
+   contacts (/api/emergency/events/<id>/message), and the phone's Messages app opens with them.
    ========================================================================== */
 const ojasAlerts = (() => {
   const FALL_COUNTDOWN_S = 10;      // same as CANCEL_WINDOW_MS in the band firmware
@@ -517,67 +516,74 @@ const ojasAlerts = (() => {
 
   /* ---------- Sending ---------- */
   // kind: 'sos' (SOS message → SOS contacts) or 'fall' (emergency message → emergency contacts).
+  // The event is saved, the server returns the message text and contacts, and the phone's
+  // Messages app is opened with them straight away (the person taps Send there). If the phone
+  // blocks opening it automatically, the "Open Messages" button does it in one tap.
   async function dispatch(kind, { event = null } = {}) {
     if (sending[kind]) return;
     sending[kind] = true;
     const sos = kind === 'sos';
     try {
-      view({ kind: 'sending', title: sos ? 'Sending SOS…' : 'Sending emergency message…', html: 'Alerting your contacts now.' });
+      view({ kind: 'sending', title: sos ? 'Preparing SOS…' : 'Preparing emergency message…', html: 'Getting your contacts and location.' });
       buzz();
       const ev = event || await logEvent(sos ? 'SOS' : 'FALL');
-      if (!ev) return fallback(kind, null, null, 'The OJAS server could not be reached.');
-      remember(ev.id);
-      try {
-        const res = await apiFetch(`/api/emergency/events/${ev.id}/notify`, { method: 'POST' });
-        const failed = (res.failed || []).map((f) => esc(f.name));
+      let msg = null;
+      if (ev) {
+        remember(ev.id);
+        try {
+          msg = await apiFetch(`/api/emergency/events/${ev.id}/message`);
+        } catch (err) {
+          if (err.data && err.data.no_contacts) {
+            view({
+              kind: 'result',
+              title: 'No contacts to alert',
+              html: esc(err.message),
+              primary: ['Add contacts', () => { location.href = 'emergency.html'; }],
+              secondary: ['Close', hide],
+            });
+            return;
+          }
+          if (err.status === 409) { hide(); return; }   // cancelled meanwhile
+          // otherwise (offline): use the contacts and message saved on this device
+        }
+      }
+
+      const handedOver = () => {
+        patch(ev, 'SENT');   // SENT = handed to the Messages app
         view({
           kind: 'result',
           ok: true,
-          title: res.already_sent ? 'Contacts already alerted' : (sos ? 'SOS sent' : 'Emergency message sent'),
-          html: res.already_sent ? 'Your contacts were already alerted for this emergency.'
-            : `Sent to <strong>${res.sent.map(esc).join(', ')}</strong>.${failed.length ? ` Could not reach ${failed.join(', ')}.` : ''}`,
+          title: 'Messages opened',
+          html: `Your ${sos ? 'SOS' : 'emergency'} message is ready. Tap <strong>Send</strong> in Messages.`,
           primary: ['OK', hide],
+          secondary: ['Open Messages again', open],
         });
-      } catch (err) {
-        const d = err.data || {};
-        if (d.no_contacts) {
-          view({
-            kind: 'result',
-            title: 'No contacts to alert',
-            html: esc(err.message),
-            primary: ['Add contacts', () => { location.href = 'emergency.html'; }],
-            secondary: ['Close', hide],
-          });
-        } else if (err.status === 409) {
-          hide();
-        } else {
-          fallback(kind, ev, d.phones && d.text ? d : null, d.sms_configured === false
-            ? 'Automatic SMS is not set up on the server yet.' : err.message);
-        }
+      };
+      async function open() {
+        if (msg) ojasAlert.openMessages(msg.phones, msg.text);
+        else if (!(await ojasAlert.send(sos ? 'sos' : 'emergency'))) return;
+        handedOver();
+      }
+
+      const who = msg ? msg.names.map(esc).join(', ') : `your ${sos ? 'SOS' : 'emergency'} contacts`;
+      view({
+        kind: 'result',
+        title: sos ? 'Send your SOS' : 'Send your emergency message',
+        html: `Opening Messages with your ${sos ? 'SOS' : 'emergency'} message to <strong>${who}</strong>. `
+          + 'Tap <strong>Send</strong> there. If it did not open, tap the button below.',
+        primary: ['Open Messages', open],
+        secondary: ['Close', hide],
+      });
+
+      // Open it straight away. If the phone switches to the Messages app, the page is hidden.
+      if (msg && ojasAlert.isPhone()) {
+        const opened = () => { if (document.hidden) { document.removeEventListener('visibilitychange', opened); handedOver(); } };
+        document.addEventListener('visibilitychange', opened);
+        setTimeout(() => document.removeEventListener('visibilitychange', opened), 4000);
+        try { ojasAlert.openMessages(msg.phones, msg.text); } catch { /* the button still works */ }
       }
     } finally {
       sending[kind] = false;
-    }
-  }
-
-  // The server could not send: open the Messages app with the same text (one tap on Send there).
-  function fallback(kind, event, serverText, reason) {
-    const open = async () => {
-      if (serverText) ojasAlert.openMessages(serverText.phones, serverText.text);
-      else if (!(await ojasAlert.send(kind === 'sos' ? 'sos' : 'emergency'))) return;
-      patch(event, 'SENT');   // handed to the Messages app
-      hide();
-    };
-    view({
-      kind: 'result',
-      title: kind === 'sos' ? 'Send your SOS' : 'Send your emergency message',
-      html: `${esc(reason)} Tap below to open Messages with your contacts and message filled in, then tap Send.`,
-      primary: ['Open Messages', open],
-      secondary: ['Close', hide],
-    });
-    // Try to open it straight away (works when this follows a tap; otherwise the button is there).
-    if (serverText && ojasAlert.isPhone()) {
-      try { ojasAlert.openMessages(serverText.phones, serverText.text); } catch { /* the button still works */ }
     }
   }
 
@@ -591,7 +597,7 @@ const ojasAlerts = (() => {
       view({
         kind: 'countdown',
         title: 'Possible fall detected',
-        html: `Sending your emergency message to your emergency contacts in <strong class="fall-count">${left}</strong> s.`,
+        html: `Your emergency message to your emergency contacts opens in <strong class="fall-count">${left}</strong> s.`,
         primary: ['Cancel emergency', () => cancelCountdown(false)],
       });
       if (left === 0) escalateFall();
