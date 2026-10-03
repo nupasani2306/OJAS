@@ -1,6 +1,6 @@
 // Metric history pages (heart rate, SpO₂, steps, calories, sleep, water).
-// Each page sets <body data-metric="...">. Data comes from fetchHistory() below, which is a
-// placeholder until the backend / cloud sync is connected, so every page shows empty states for now.
+// Each page sets <body data-metric="...">. Data comes from the OJAS backend via fetchHistory() below;
+// a metric with no readings yet shows the empty states.
 (function () {
   const METRICS = {
     heart: {
@@ -31,8 +31,7 @@
 
   const RANGES = { day: 'Today', week: 'This week', month: 'This month' };
 
-  // ---- Connect the backend here ----------------------------------------------------------
-  // Return the history for one metric and range ('day' | 'week' | 'month') in this shape:
+  // Returns the history for one metric and range ('day' | 'week' | 'month') in this shape:
   //   {
   //     latest:   { value: 78, time: 1727700000000 } | null,
   //     points:   [{ label: 'Mon', value: 72 }, ...],   // one per chart bucket, oldest first
@@ -40,16 +39,14 @@
   //   }
   // Values use the units above (sleep in minutes, water in litres).
   async function fetchHistory(metric, range) {
-    // e.g. const res = await fetch(`/api/history/${metric}?range=${range}`);
-    //      return await res.json();
-    return { latest: null, points: [], readings: [] };
+    const { latest, points, readings } = await apiFetch(`/api/health/history/${metric}?range=${range}&tz=${ojasTz()}`);
+    return { latest, points, readings };
   }
-  // -----------------------------------------------------------------------------------------
 
   const key = document.body.dataset.metric;
   const m = METRICS[key];
   if (!m) return;
-  const source = window.ojasHistorySource || fetchHistory; // lets a test or future sync layer supply data
+  const source = window.ojasHistorySource || fetchHistory; // lets a test supply data
   const $ = (id) => document.getElementById(id);
   const withUnit = (v) => (m.unit ? `${m.format(v)} ${m.unit}` : m.format(v));
 

@@ -1,63 +1,18 @@
-// Chat page: conversation UI for the OJAS assistant, remembered in this browser.
-// Replies come from getReply() below. It returns demo answers until an AI backend is connected.
+// Chat page: conversation UI for the OJAS assistant. Messages and replies go through the
+// OJAS backend (POST /api/chat), which stores the conversation; a copy is cached in this browser.
 (function () {
-  const store = {
-    get(key, fallback) {
-      try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; }
-    },
-    set(key, value) {
-      try { localStorage.setItem(key, JSON.stringify(value)); return true; } catch { return false; }
-    },
-  };
+  const store = ojasStore;
 
-  const profile = store.get('ojas.profile', { name: 'Neha' });
-  const name = profile.name || 'Neha';
+  const session = store.get('ojas.session', {}) || {};
+  const name = store.get('ojas.profile', {}).name || session.name || 'OJAS user';
 
   /* ---------- Replies ---------- */
 
-  // Connect the AI here. Receives the whole conversation as
-  // [{ role: 'user' | 'assistant', text: '...' }, ...] and must return the reply text.
-  //
-  // Keep API keys off the page: anything in this file can be read by whoever opens it.
-  // Call your own backend instead, which holds the key and talks to the AI, e.g.
-  //
-  //   const res = await fetch('/api/chat', {
-  //     method: 'POST',
-  //     headers: { 'Content-Type': 'application/json' },
-  //     body: JSON.stringify({ messages }),
-  //   });
-  //   if (!res.ok) throw new Error('Chat request failed');
-  //   return (await res.json()).reply;
-  async function getReply(messages) {
-    const question = messages[messages.length - 1].text.toLowerCase();
-    await new Promise((r) => setTimeout(r, 700 + Math.random() * 600));
-    return demoReply(question);
-  }
-
-  function demoReply(q) {
-    const has = (...words) => words.some((w) => q.includes(w));
-    if (has('sos', 'emergency', 'help me', 'chest pain', "can't breathe")) {
-      return 'If this is an emergency, press and hold the SOS button on the home page, or call your local emergency number right away.';
-    }
-    if (has('heart', 'pulse', 'bpm')) {
-      return 'Your heart rate is 78 bpm. For adults at rest, 60–100 bpm is generally considered normal.';
-    }
-    if (has('spo2', 'spo₂', 'oxygen')) {
-      return 'SpO₂ is the percentage of oxygen in your blood. Yours is 98%. Readings of 95% or higher are usually considered normal.';
-    }
-    if (has('sleep')) {
-      return 'You slept 7h 12m. A few tips: keep a regular bedtime, avoid screens for an hour before bed, and keep your room cool and dark.';
-    }
-    if (has('water', 'hydrat', 'drink')) {
-      return 'You have had 1.8 L today. Many adults need about 2–3 L a day, more when it is hot or you are active.';
-    }
-    if (has('step', 'walk', 'calorie')) {
-      return 'You have walked 4,832 steps and burned 420 kcal so far. A short walk after meals is an easy way to add more.';
-    }
-    if (has('hi', 'hello', 'hey')) {
-      return `Hi ${name}! Ask me about your heart rate, SpO₂, sleep, steps or water.`;
-    }
-    return "I'm running in demo mode, so I can only answer a few questions for now. Try asking about your heart rate, SpO₂, sleep, steps or water.";
+  // The server saves the question, writes the reply (demo answers until an AI is connected
+  // in routes/chat.py generate_reply) and saves that too.
+  async function getReply(text) {
+    const { reply } = await apiFetch('/api/chat', { method: 'POST', body: { message: text } });
+    return reply.message;
   }
 
   /* ---------- Conversation ---------- */
@@ -126,10 +81,10 @@
     save();
     render();
     try {
-      const reply = await getReply(messages.map(({ role, text: t }) => ({ role, text: t })));
+      const reply = await getReply(text);
       messages.push({ role: 'assistant', text: reply, time: Date.now() });
-    } catch {
-      messages.push({ role: 'assistant', text: 'Sorry, I could not reply just now. Please try again.', time: Date.now(), error: true });
+    } catch (err) {
+      messages.push({ role: 'assistant', text: `Sorry, I could not reply just now. ${err.message}`, time: Date.now(), error: true });
     }
     busy = false;
     save();
@@ -167,12 +122,26 @@
     if (btn) ask(btn.textContent);
   });
 
-  document.getElementById('clear-chat').addEventListener('click', () => {
+  document.getElementById('clear-chat').addEventListener('click', async () => {
     if (busy || !confirm('Clear this conversation?')) return;
+    try {
+      await apiFetch('/api/chat', { method: 'DELETE' });
+    } catch (err) {
+      ojasToast(err.status === 409 ? 'Chat history cannot be deleted until the database update is applied.' : err.message);
+      return;
+    }
     messages = [welcome()];
     save();
     render();
   });
 
+  /* ---------- Load ---------- */
   render();
+  apiFetch('/api/chat').then(({ messages: rows }) => {
+    if (busy) return;
+    const history = rows.map((r) => ({ role: r.sender === 'user' ? 'user' : 'assistant', text: r.message, time: Date.parse(r.created_at) }));
+    messages = [{ ...welcome(), time: history.length ? history[0].time : Date.now() }, ...history];
+    save();
+    render();
+  }).catch((err) => ojasToast(err.message));
 })();

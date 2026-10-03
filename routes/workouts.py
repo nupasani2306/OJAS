@@ -1,511 +1,134 @@
-from flask import Blueprint, request, jsonify
-from config import supabase
+from flask import Blueprint, g
+
+from routes.common import body, error, ok, require_auth
+
+workouts_bp = Blueprint("workouts", __name__, url_prefix="/api/workouts")
+
+TYPES = {"Strength", "HIIT", "Running", "Cycling", "Cardio", "Yoga"}
+STATUSES = {"ACTIVE", "COMPLETED", "CANCELLED"}
+NESTED = "*, workout_exercises(*, workout_sets(*))"
 
 
-# ==================================================
-# WORKOUT BLUEPRINT
-# ==================================================
-
-workouts_bp = Blueprint(
-    "workouts",
-    __name__,
-    url_prefix="/api/workouts"
-)
+def tidy(workout):
+    """Sort nested exercises/sets and rename them to friendlier keys."""
+    exercises = sorted(workout.pop("workout_exercises", []) or [], key=lambda e: e.get("order_no") or 0)
+    for ex in exercises:
+        ex["sets"] = sorted(ex.pop("workout_sets", []) or [], key=lambda s: s.get("set_number") or 0)
+    workout["exercises"] = exercises
+    return workout
 
 
-# ==================================================
-# AUTHENTICATION
-# ==================================================
+def owned_workout(workout_id):
+    rows = g.db.table("workouts").select("id").eq("id", workout_id).eq("user_id", g.user.id).execute().data
+    return bool(rows)
 
-def get_current_user():
-
-    auth_header = request.headers.get("Authorization")
-
-    if not auth_header or not auth_header.startswith("Bearer "):
-        return None
-
-    access_token = auth_header.split(" ", 1)[1]
-
-    try:
-        response = supabase.auth.get_user(access_token)
-        return response.user
-
-    except Exception:
-        return None
-
-
-# ==================================================
-# GET ALL WORKOUTS
-# ==================================================
 
 @workouts_bp.route("", methods=["GET"])
+@require_auth
 def get_workouts():
+    response = (g.db.table("workouts").select(NESTED).eq("user_id", g.user.id)
+                .order("started_at", desc=True).limit(200).execute())
+    return ok(workouts=[tidy(w) for w in response.data])
 
-    user = get_current_user()
-
-    if not user:
-        return jsonify({
-            "status": "error",
-            "message": "Invalid or missing authentication token"
-        }), 401
-
-    try:
-
-        response = (
-            supabase
-            .table("workouts")
-            .select("*")
-            .eq("user_id", user.id)
-            .order("started_at", desc=True)
-            .execute()
-        )
-
-        return jsonify({
-            "status": "success",
-            "workouts": response.data
-        }), 200
-
-    except Exception as e:
-
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
-
-
-# ==================================================
-# CREATE WORKOUT
-# ==================================================
 
 @workouts_bp.route("", methods=["POST"])
+@require_auth
 def create_workout():
+    """Save a workout, optionally with its exercises and sets in one request:
+    {workout_type, workout_name, started_at, ended_at, duration_minutes, calories_burned, distance_km,
+     status, exercises: [{exercise_name, exercise_type?, sets: [{weight_kg, reps, completed}]}]}"""
+    data = body()
+    workout_type = data.get("workout_type")
+    if workout_type not in TYPES:
+        return error("workout_type must be one of " + ", ".join(sorted(TYPES)))
+    status = (data.get("status") or "COMPLETED").upper()
+    if status not in STATUSES:
+        return error("status must be one of " + ", ".join(sorted(STATUSES)))
 
-    user = get_current_user()
+    workout = {"user_id": g.user.id, "workout_type": workout_type, "status": status}
+    for key in ("workout_name", "started_at", "ended_at", "duration_minutes", "calories_burned", "distance_km"):
+        if data.get(key) not in (None, ""):
+            workout[key] = data[key]
+    exercises = data.get("exercises") or []
+    if not isinstance(exercises, list):
+        return error("exercises must be a list")
 
-    if not user:
-        return jsonify({
-            "status": "error",
-            "message": "Invalid or missing authentication token"
-        }), 401
-
+    saved = g.db.table("workouts").insert(workout).execute().data[0]
     try:
+        for order, ex in enumerate(exercises, start=1):
+            name = (ex.get("exercise_name") or "").strip()
+            if not name:
+                continue
+            ex_row = g.db.table("workout_exercises").insert({
+                "workout_id": saved["id"], "exercise_name": name,
+                "exercise_type": ex.get("exercise_type"), "order_no": order,
+            }).execute().data[0]
+            sets = [{
+                "workout_exercise_id": ex_row["id"],
+                "set_number": n,
+                "weight_kg": s.get("weight_kg"),
+                "reps": s.get("reps"),
+                "completed": bool(s.get("completed")),
+            } for n, s in enumerate(ex.get("sets") or [], start=1)]
+            if sets:
+                g.db.table("workout_sets").insert(sets).execute()
+    except Exception:
+        g.db.table("workouts").delete().eq("id", saved["id"]).execute()   # exercises/sets cascade
+        raise
 
-        data = request.get_json()
+    full = g.db.table("workouts").select(NESTED).eq("id", saved["id"]).single().execute().data
+    return ok(201, message="Workout saved", workout=tidy(full))
 
-        if not data:
-            return jsonify({
-                "status": "error",
-                "message": "No workout data provided"
-            }), 400
-
-        workout_data = {
-            "user_id": user.id,
-            "type": data.get("type"),
-            "name": data.get("name"),
-            "started_at": data.get("started_at"),
-            "duration_minutes": data.get("duration_minutes"),
-            "calories": data.get("calories"),
-            "distance": data.get("distance")
-        }
-
-        # Remove fields that were not provided
-        workout_data = {
-            key: value
-            for key, value in workout_data.items()
-            if value is not None
-        }
-
-        response = (
-            supabase
-            .table("workouts")
-            .insert(workout_data)
-            .execute()
-        )
-
-        return jsonify({
-            "status": "success",
-            "message": "Workout created successfully",
-            "workout": response.data
-        }), 201
-
-    except Exception as e:
-
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
-
-
-# ==================================================
-# GET ONE WORKOUT
-# INCLUDING EXERCISES AND SETS
-# ==================================================
 
 @workouts_bp.route("/<workout_id>", methods=["GET"])
+@require_auth
 def get_workout(workout_id):
-
-    user = get_current_user()
-
-    if not user:
-        return jsonify({
-            "status": "error",
-            "message": "Invalid or missing authentication token"
-        }), 401
-
-    try:
-
-        # --------------------------------------------------
-        # GET WORKOUT
-        # --------------------------------------------------
-
-        workout_response = (
-            supabase
-            .table("workouts")
-            .select("*")
-            .eq("id", workout_id)
-            .eq("user_id", user.id)
-            .single()
-            .execute()
-        )
-
-        workout = workout_response.data
-
-        if not workout:
-            return jsonify({
-                "status": "error",
-                "message": "Workout not found"
-            }), 404
+    response = (g.db.table("workouts").select(NESTED).eq("id", workout_id).eq("user_id", g.user.id)
+                .maybe_single().execute())
+    if not response or not response.data:
+        return error("Workout not found", 404)
+    return ok(workout=tidy(response.data))
 
 
-        # --------------------------------------------------
-        # GET EXERCISES
-        # --------------------------------------------------
-
-        exercises_response = (
-            supabase
-            .table("workout_exercises")
-            .select("*")
-            .eq("workout_id", workout_id)
-            .order("exercise_order")
-            .execute()
-        )
-
-        exercises = exercises_response.data
-
-
-        # --------------------------------------------------
-        # GET SETS FOR EACH EXERCISE
-        # --------------------------------------------------
-
-        for exercise in exercises:
-
-            sets_response = (
-                supabase
-                .table("workout_sets")
-                .select("*")
-                .eq(
-                    "workout_exercise_id",
-                    exercise["id"]
-                )
-                .order("set_number")
-                .execute()
-            )
-
-            exercise["sets"] = sets_response.data
-
-
-        # Add exercises to workout
-        workout["exercises"] = exercises
-
-
-        return jsonify({
-            "status": "success",
-            "workout": workout
-        }), 200
-
-    except Exception as e:
-
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
-
-
-# ==================================================
-# ADD EXERCISE TO WORKOUT
-# ==================================================
-
-@workouts_bp.route(
-    "/<workout_id>/exercises",
-    methods=["POST"]
-)
+@workouts_bp.route("/<workout_id>/exercises", methods=["POST"])
+@require_auth
 def add_exercise(workout_id):
-
-    user = get_current_user()
-
-    if not user:
-        return jsonify({
-            "status": "error",
-            "message": "Invalid or missing authentication token"
-        }), 401
-
-    try:
-
-        # --------------------------------------------------
-        # VERIFY WORKOUT BELONGS TO USER
-        # --------------------------------------------------
-
-        workout = (
-            supabase
-            .table("workouts")
-            .select("id")
-            .eq("id", workout_id)
-            .eq("user_id", user.id)
-            .execute()
-        )
-
-        if not workout.data:
-            return jsonify({
-                "status": "error",
-                "message": "Workout not found"
-            }), 404
+    if not owned_workout(workout_id):
+        return error("Workout not found", 404)
+    data = body()
+    name = (data.get("exercise_name") or "").strip()
+    if not name:
+        return error("exercise_name is required")
+    response = g.db.table("workout_exercises").insert({
+        "workout_id": workout_id, "exercise_name": name,
+        "exercise_type": data.get("exercise_type"), "order_no": data.get("order_no", 1),
+    }).execute()
+    return ok(201, message="Exercise added successfully", exercise=response.data[0])
 
 
-        # --------------------------------------------------
-        # GET REQUEST DATA
-        # --------------------------------------------------
-
-        data = request.get_json()
-
-        if not data:
-            return jsonify({
-                "status": "error",
-                "message": "No exercise data provided"
-            }), 400
-
-
-        exercise_name = data.get("exercise_name")
-
-        if not exercise_name:
-            return jsonify({
-                "status": "error",
-                "message": "exercise_name is required"
-            }), 400
-
-
-        exercise_data = {
-            "workout_id": workout_id,
-            "exercise_name": exercise_name,
-            "exercise_order": data.get(
-                "exercise_order",
-                1
-            )
-        }
-
-
-        # --------------------------------------------------
-        # INSERT EXERCISE
-        # --------------------------------------------------
-
-        response = (
-            supabase
-            .table("workout_exercises")
-            .insert(exercise_data)
-            .execute()
-        )
-
-
-        return jsonify({
-            "status": "success",
-            "message": "Exercise added successfully",
-            "exercise": response.data
-        }), 201
-
-    except Exception as e:
-
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
-
-
-# ==================================================
-# ADD SET TO EXERCISE
-# ==================================================
-
-@workouts_bp.route(
-    "/exercises/<exercise_id>/sets",
-    methods=["POST"]
-)
+@workouts_bp.route("/exercises/<exercise_id>/sets", methods=["POST"])
+@require_auth
 def add_set(exercise_id):
-
-    user = get_current_user()
-
-    if not user:
-        return jsonify({
-            "status": "error",
-            "message": "Invalid or missing authentication token"
-        }), 401
-
-    try:
-
-        data = request.get_json()
-
-        if not data:
-            return jsonify({
-                "status": "error",
-                "message": "No set data provided"
-            }), 400
+    exercise = g.db.table("workout_exercises").select("workout_id").eq("id", exercise_id).execute().data
+    if not exercise or not owned_workout(exercise[0]["workout_id"]):
+        return error("Exercise not found", 404)
+    data = body()
+    if not isinstance(data.get("set_number"), int) or data["set_number"] < 1:
+        return error("set_number must be a whole number of 1 or more")
+    response = g.db.table("workout_sets").insert({
+        "workout_exercise_id": exercise_id,
+        "set_number": data["set_number"],
+        "weight_kg": data.get("weight_kg"),
+        "reps": data.get("reps"),
+        "completed": bool(data.get("completed", False)),
+    }).execute()
+    return ok(201, message="Workout set saved successfully", set=response.data[0])
 
 
-        # --------------------------------------------------
-        # FIND EXERCISE
-        # --------------------------------------------------
-
-        exercise_response = (
-            supabase
-            .table("workout_exercises")
-            .select("workout_id")
-            .eq("id", exercise_id)
-            .execute()
-        )
-
-        if not exercise_response.data:
-            return jsonify({
-                "status": "error",
-                "message": "Exercise not found"
-            }), 404
-
-
-        workout_id = exercise_response.data[0]["workout_id"]
-
-
-        # --------------------------------------------------
-        # VERIFY WORKOUT BELONGS TO USER
-        # --------------------------------------------------
-
-        workout_response = (
-            supabase
-            .table("workouts")
-            .select("id")
-            .eq("id", workout_id)
-            .eq("user_id", user.id)
-            .execute()
-        )
-
-        if not workout_response.data:
-            return jsonify({
-                "status": "error",
-                "message": "Unauthorized workout"
-            }), 403
-
-
-        # --------------------------------------------------
-        # CREATE SET
-        # --------------------------------------------------
-
-        set_data = {
-            "workout_exercise_id": exercise_id,
-            "set_number": data.get("set_number"),
-            "weight_kg": data.get("weight_kg"),
-            "reps": data.get("reps"),
-            "completed": data.get(
-                "completed",
-                False
-            )
-        }
-
-
-        # Remove missing optional fields
-        set_data = {
-            key: value
-            for key, value in set_data.items()
-            if value is not None
-        }
-
-
-        # --------------------------------------------------
-        # INSERT SET
-        # --------------------------------------------------
-
-        response = (
-            supabase
-            .table("workout_sets")
-            .insert(set_data)
-            .execute()
-        )
-
-
-        return jsonify({
-            "status": "success",
-            "message": "Workout set saved successfully",
-            "set": response.data
-        }), 201
-
-    except Exception as e:
-
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
-
-
-# ==================================================
-# DELETE WORKOUT
-# ==================================================
-
-@workouts_bp.route(
-    "/<workout_id>",
-    methods=["DELETE"]
-)
+@workouts_bp.route("/<workout_id>", methods=["DELETE"])
+@require_auth
 def delete_workout(workout_id):
-
-    user = get_current_user()
-
-    if not user:
-        return jsonify({
-            "status": "error",
-            "message": "Invalid or missing authentication token"
-        }), 401
-
-    try:
-
-        # Verify ownership before deleting
-        workout = (
-            supabase
-            .table("workouts")
-            .select("id")
-            .eq("id", workout_id)
-            .eq("user_id", user.id)
-            .execute()
-        )
-
-        if not workout.data:
-            return jsonify({
-                "status": "error",
-                "message": "Workout not found"
-            }), 404
-
-
-        # Delete workout
-        (
-            supabase
-            .table("workouts")
-            .delete()
-            .eq("id", workout_id)
-            .eq("user_id", user.id)
-            .execute()
-        )
-
-
-        return jsonify({
-            "status": "success",
-            "message": "Workout deleted successfully"
-        }), 200
-
-    except Exception as e:
-
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+    response = g.db.table("workouts").delete().eq("id", workout_id).eq("user_id", g.user.id).execute()
+    if not response.data:
+        return error("Workout not found", 404)
+    return ok(message="Workout deleted successfully")

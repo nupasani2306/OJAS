@@ -38,8 +38,8 @@
     <!-- Sign in -->
     <form class="card auth-form" id="signin-form" role="tabpanel" aria-labelledby="tab-signin" novalidate>
       <label class="auth-field">
-        <span>Email or phone</span>
-        <input name="contact" type="text" autocomplete="username" inputmode="email" required />
+        <span>Email</span>
+        <input name="contact" type="email" autocomplete="username" required />
       </label>
       <label class="auth-field">
         <span>Password</span>
@@ -67,8 +67,8 @@
         <input name="name" type="text" autocomplete="name" maxlength="60" required />
       </label>
       <label class="auth-field">
-        <span>Email or phone</span>
-        <input name="contact" type="text" autocomplete="username" inputmode="email" required />
+        <span>Email</span>
+        <input name="contact" type="email" autocomplete="username" required />
       </label>
       <label class="auth-field">
         <span>Password <small>(at least 8 characters)</small></span>
@@ -101,8 +101,7 @@
       <a class="auth-link auth-skip" href="home.html">Skip for now</a>
     </form>
 
-    <p class="auth-demo" id="auth-demo">Demo mode: accounts are kept in this browser and passwords are not checked until the backend is connected.</p>
-
+    
     <!-- Pairing progress -->
     <div class="auth-pairing" id="pairing" hidden>
       <div class="auth-pairing-card" role="status" aria-live="polite">
@@ -129,6 +128,7 @@
     </template>
   </main>
 
+  <script src="api.js"></script>
   <script src="auth.js"></script>
 </body>
 </html>

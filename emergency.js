@@ -1,16 +1,19 @@
-// Emergency contacts page: editable emergency message and contact list, remembered in this browser.
+// Emergency contacts page: emergency/SOS messages and contact lists, stored in the OJAS backend.
 (function () {
-  const store = {
-    get(key, fallback) {
-      try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; }
-    },
-    set(key, value) {
-      try { localStorage.setItem(key, JSON.stringify(value)); return true; } catch { return false; }
-    },
-  };
+  const store = ojasStore;
 
-  const profile = store.get('ojas.profile', { name: 'Neha' });
-  const name = profile.name || 'Neha';
+  // Save a message to the server; before the database migration it is kept on this device only.
+  async function saveMessage(field, value) {
+    try {
+      const saved = await ojasSync.saveSettings({ [field]: value });
+      ojasToast(saved ? 'Message saved' : 'Saved on this device only until the database update is applied.', saved ? 'ok' : 'error');
+    } catch (err) {
+      ojasToast(err.message);
+    }
+  }
+
+  const profile = store.get('ojas.profile', {}) || {};
+  const name = (profile.name || (store.get('ojas.session', {}) || {}).name || 'OJAS user').trim().split(/\s+/)[0];
 
   /* ---------- Emergency message ---------- */
   const defaultMessage = () =>
@@ -48,6 +51,7 @@
     store.set('ojas.emergencyMessage', message);
     text.textContent = message;
     editing(false);
+    saveMessage('emergency_message', message);
   });
 
   /* ---------- SOS message ---------- */
@@ -88,20 +92,26 @@
     store.set('ojas.sosMessage', sosMessage);
     sosText.textContent = sosMessage;
     editingSos(false);
+    saveMessage('sos_message', sosMessage);
   });
 
   /* ---------- Contacts ---------- */
   const contactForm = document.getElementById('contact-form');
   const addContactToggle = document.getElementById('add-contact-toggle');
-  const contactGroups = (() => {
-    const saved = store.get('ojas.contactGroups', null);
-    if (saved) return {
+  let serverContacts = [];   // rows from the backend (with use_for_emergency / use_for_sos)
+  let contactGroups = (() => {
+    const saved = store.get('ojas.contactGroups', null) || {};
+    return {
       emergency: Array.isArray(saved.emergency) ? saved.emergency : [],
       sos: Array.isArray(saved.sos) ? saved.sos : [],
     };
-    const legacy = store.get('ojas.contacts', []);
-    return { emergency: Array.isArray(legacy) ? legacy : [], sos: [] };
   })();
+
+  function setContacts(contacts) {
+    serverContacts = contacts;
+    contactGroups = ojasSync.contactsToCache(contacts);
+    renderContacts();
+  }
 
   addContactToggle.addEventListener('click', () => {
     contactForm.hidden = !contactForm.hidden;
@@ -135,10 +145,23 @@
       remove.type = 'button';
       remove.setAttribute('aria-label', `Remove ${contact.name}`);
       remove.innerHTML = '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg>';
-      remove.addEventListener('click', () => {
-        contactGroups[type] = contactGroups[type].filter((item) => item.id !== contact.id);
-        store.set('ojas.contactGroups', contactGroups);
-        renderContactList(type);
+      remove.addEventListener('click', async () => {
+        if (!confirm(`Remove ${contact.name} from this list?`)) return;
+        const row = serverContacts.find((c) => c.id === contact.id);
+        try {
+          if (row && row.use_for_emergency && row.use_for_sos) {
+            // In both lists: only take it off this one.
+            const { contact: updated } = await apiFetch(`/api/emergency/contacts/${contact.id}`, {
+              method: 'PUT', body: { [type === 'sos' ? 'use_for_sos' : 'use_for_emergency']: false },
+            });
+            setContacts(serverContacts.map((c) => (c.id === updated.id ? updated : c)));
+          } else {
+            await apiFetch(`/api/emergency/contacts/${contact.id}`, { method: 'DELETE' });
+            setContacts(serverContacts.filter((c) => c.id !== contact.id));
+          }
+        } catch (err) {
+          ojasToast(err.message);
+        }
       });
 
       item.append(avatar, info, remove);
@@ -156,7 +179,7 @@
   const validPhone = (v) => /^[\d\s+()-]+$/.test(v) && (v.match(/\d/g) || []).length >= 6 && (v.match(/\d/g) || []).length <= 15;
   phoneInput.addEventListener('input', () => phoneInput.setCustomValidity(''));
 
-  contactForm.addEventListener('submit', (e) => {
+  contactForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     if (!validPhone(phoneInput.value.trim())) {
       phoneInput.setCustomValidity('Enter a valid phone number (6 to 15 digits).');
@@ -164,17 +187,29 @@
       return;
     }
     const data = Object.fromEntries(new FormData(contactForm).entries());
-    contactGroups[data.messageType].push({
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      name: data.name.trim(),
-      relation: data.relation,
-      phone: data.phone.trim(),
-    });
-    store.set('ojas.contactGroups', contactGroups);
-    contactForm.reset();
-    contactForm.hidden = true;
-    renderContacts();
+    const submit = contactForm.querySelector('button[type="submit"]');
+    if (submit) submit.disabled = true;
+    try {
+      const { contact } = await apiFetch('/api/emergency/contacts', {
+        method: 'POST',
+        body: { name: data.name.trim(), phone: data.phone.trim(), relationship: data.relation, group: data.messageType },
+      });
+      setContacts([...serverContacts, contact]);
+      contactForm.reset();
+      contactForm.hidden = true;
+    } catch (err) {
+      ojasToast(err.message);
+    } finally {
+      if (submit) submit.disabled = false;
+    }
   });
 
   renderContacts();
+
+  /* ---------- Load from the server ---------- */
+  apiFetch('/api/emergency/contacts').then(({ contacts }) => setContacts(contacts)).catch((err) => ojasToast(err.message));
+  ojasSync.settings().then(({ settings }) => {
+    if (settings.emergency_message) { message = settings.emergency_message; text.textContent = message; }
+    if (settings.sos_message) { sosMessage = settings.sos_message; sosText.textContent = sosMessage; }
+  }).catch(() => { /* keep the messages cached on this device */ });
 })();
