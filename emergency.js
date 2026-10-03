@@ -12,12 +12,8 @@
     }
   }
 
-  const profile = store.get('ojas.profile', {}) || {};
-  const name = (profile.name || (store.get('ojas.session', {}) || {}).name || 'OJAS user').trim().split(/\s+/)[0];
-
   /* ---------- Emergency message ---------- */
-  const defaultMessage = () =>
-    `This is ${name}. I need help urgently. Please call me or come to my location as soon as possible.`;
+  const defaultMessage = () => ojasAlert.defaultMessage('emergency');
 
   const text = document.getElementById('message-text');
   const form = document.getElementById('message-form');
@@ -55,8 +51,7 @@
   });
 
   /* ---------- SOS message ---------- */
-  const defaultSosMessage = () =>
-    `SOS! ${name} needs immediate help. Please check on me or call emergency services.`;
+  const defaultSosMessage = () => ojasAlert.defaultMessage('sos');
   const sosText = document.getElementById('sos-message-text');
   const sosForm = document.getElementById('sos-message-form');
   const sosInput = document.getElementById('sos-message-input');

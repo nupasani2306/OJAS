@@ -169,3 +169,78 @@ function ojasToast(message, kind = 'error') {
   clearTimeout(box._timer);
   box._timer = setTimeout(() => { box.className = `ojas-toast is-${kind}`; }, 4000);
 }
+
+// Emergency alerts: opens the phone's Messages app addressed to every contact in a group,
+// with the message (and a map link when the location is known) already typed in.
+// The person taps Send; a web page cannot send an SMS by itself.
+const ojasAlert = {
+  firstName() {
+    const p = ojasStore.get('ojas.profile', {}) || {};
+    const s = ojasStore.get('ojas.session', {}) || {};
+    return (p.name || s.name || 'OJAS user').trim().split(/\s+/)[0];
+  },
+
+  defaultMessage(kind) {
+    const name = this.firstName();
+    return kind === 'sos'
+      ? `SOS! ${name} needs immediate help. Please check on me or call emergency services.`
+      : `This is ${name}. I need help urgently. Please call me or come to my location as soon as possible.`;
+  },
+
+  // kind: 'sos' (SOS message → SOS contacts) or 'emergency' (Emergency message → Emergency contacts).
+  message(kind) {
+    return ojasStore.get(kind === 'sos' ? 'ojas.sosMessage' : 'ojas.emergencyMessage') || this.defaultMessage(kind);
+  },
+
+  contacts(kind) {
+    const groups = ojasStore.get('ojas.contactGroups', {}) || {};
+    return Array.isArray(groups[kind]) ? groups[kind] : [];
+  },
+
+  isPhone() {
+    return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+      || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  },
+
+  // Current position, or null. Kept short so the Messages app still opens from the button press.
+  locate(timeout = 2500) {
+    if (!navigator.geolocation) return Promise.resolve(null);
+    return new Promise((resolve) => {
+      const done = (v) => { clearTimeout(timer); resolve(v); };
+      const timer = setTimeout(() => resolve(null), timeout + 200);
+      navigator.geolocation.getCurrentPosition((pos) => done(pos.coords), () => done(null),
+        { timeout, maximumAge: 5 * 60 * 1000, enableHighAccuracy: true });
+    });
+  },
+
+  smsLink(numbers, body) {
+    const text = encodeURIComponent(body);
+    if (/iPhone|iPad|iPod/i.test(navigator.userAgent) || navigator.platform === 'MacIntel') {
+      return `sms:/open?addresses=${numbers.join(',')}&body=${text}`;
+    }
+    return `sms:${numbers.join(';')}?body=${text}`;
+  },
+
+  // Returns { coords } once the message is handed over, or null (with a toast) when there is nobody to send to.
+  async send(kind, coords) {
+    const contacts = this.contacts(kind);
+    const numbers = contacts.map((c) => String(c.phone || '').replace(/[^\d+]/g, '')).filter(Boolean);
+    if (!numbers.length) {
+      ojasToast(`Add ${kind === 'sos' ? 'SOS' : 'emergency'} contacts on the Emergency page first.`);
+      return null;
+    }
+    const where = coords === undefined ? await this.locate() : coords;
+    const body = where
+      ? `${this.message(kind)}\n\nMy location: https://maps.google.com/?q=${where.latitude.toFixed(6)},${where.longitude.toFixed(6)}`
+      : this.message(kind);
+
+    if (this.isPhone()) {
+      location.href = this.smsLink(numbers, body);
+    } else {
+      // On a computer there is no Messages app: show what would be sent.
+      const list = contacts.map((c) => `${c.name}: ${c.phone}`).join('\n');
+      alert(`Open OJAS on your phone to send this by SMS.\n\nTo:\n${list}\n\n${body}`);
+    }
+    return { coords: where };
+  },
+};
