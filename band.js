@@ -74,8 +74,17 @@ const ojasBand = (() => {
   // (small BLE packet size), join the pieces until the object is complete.
   let buffer = '';
   let badPackets = 0;
+  // The first packets of each connection are written to the browser console (F12 → Console)
+  // so the band's data can be checked while setting up.
+  let logged = 0;
+  let packetAt = 0;
+  const logPacket = (label, text) => {
+    if (logged < 15) { logged += 1; console.info(`[OJAS band] ${label}:`, text); }
+  };
   function readJson(dataView) {
     const text = decoder.decode(dataView).replace(/\0/g, '').trim();
+    logPacket('vitals packet', JSON.stringify(text));
+    packetAt = Date.now();
     if (!text) return null;
     buffer = text.startsWith('{') ? text : buffer + text;
     if (buffer.length > 2048) buffer = '';
@@ -94,10 +103,22 @@ const ojasBand = (() => {
     }
   }
 
+  let notifiedAt = 0;      // last vitals *notification* (as opposed to a read)
+  let parsedAt = 0;
+  let reading = false;     // a readValue() is in progress (Chrome reports its result as an event too)
+  let handled = 0;
   function onVitals(e) {
+    handled += 1;
+    if (e.type === 'characteristicvaluechanged' && !reading) notifiedAt = Date.now();
     const raw = readJson(e.target.value);
     if (!raw || typeof raw !== 'object') return;
+    if (!['hr', 'spo2', 'steps', 'bat', 'finger'].some((k) => k in raw)) {
+      logPacket('not OJAS vitals (expected hr, spo2, steps, bat, finger)', Object.keys(raw).join(', '));
+      return;
+    }
     const v = parseVitals(raw);
+    parsedAt = v.at;
+    if (logged < 15) logPacket('parsed', JSON.stringify(v));
     state.vitals = v;
     state.vitalsAt = v.at;
     trackSteps(v.steps);
@@ -110,6 +131,7 @@ const ojasBand = (() => {
   let lastAlert = { code: null, at: 0 };
   function onAlert(e) {
     const text = decoder.decode(e.target.value).replace(/\0/g, '').trim().toUpperCase();
+    console.info('[OJAS band] alert:', JSON.stringify(text));
     const match = text.match(/FALL_PENDING|CANCEL+ED|FALL|SOS/);
     if (!match) return;
     const code = match[0].startsWith('CANCEL') ? 'CANCELLED' : match[0];
@@ -150,13 +172,19 @@ const ojasBand = (() => {
       await subscribe(service, OJAS_BLE.alert, onAlert, 'alert');
       retryCount = 0;
       buffer = '';
+      logged = 0;
+      packetAt = 0;
+      notifiedAt = 0;
+      parsedAt = 0;
+      const p = vitals.properties || {};
+      console.info('[OJAS band] connected to', device.name, '— vitals characteristic:',
+        { notify: !!p.notify, indicate: !!p.indicate, read: !!p.read });
       setStatus('connected');
       emit('connected', { name: device.name });
       deviceUpdate({ is_connected: true }, true);
       // Show the current values straight away if the band allows reading them.
-      if (vitals.properties && vitals.properties.read) {
-        try { onVitals({ target: { value: await vitals.readValue() } }); } catch { /* wait for the next notification */ }
-      }
+      if (p.read) await readVitals(vitals);
+      watchVitals(vitals);
     })().catch((err) => {
       setStatus('disconnected');
       if (device && !userDisconnect) scheduleReconnect();
@@ -165,7 +193,41 @@ const ojasBand = (() => {
     return opening;
   }
 
+  // If no notifications arrive (for example the band's notify setup is incomplete), read the
+  // characteristic every 2 s instead, as long as the band allows reading it. Also say so once.
+  let pollTimer = null;
+  async function readVitals(vitals) {
+    const before = handled;
+    reading = true;
+    try {
+      const value = await vitals.readValue();
+      if (handled === before) onVitals({ type: 'read', target: { value } });   // no event was fired for it
+    } catch { /* wait for the next notification */ } finally {
+      reading = false;
+    }
+  }
+
+  function watchVitals(vitals) {
+    clearInterval(pollTimer);
+    const started = Date.now();
+    let warned = false;
+    pollTimer = setInterval(async () => {
+      if (state.status !== 'connected') { clearInterval(pollTimer); return; }
+      const quiet = Date.now() - Math.max(notifiedAt, started) > 4000;
+      if (quiet && vitals.properties && vitals.properties.read) {
+        await readVitals(vitals);
+      }
+      if (!warned && Date.now() - started > 10000 && Date.now() - parsedAt > 10000) {
+        warned = true;
+        console.warn('[OJAS band] connected, but no readable vitals received in 10 s.',
+          packetAt ? 'Packets arrive but could not be read (see "vitals packet" above).' : 'No vitals packets arrived.');
+        emit('problem', packetAt ? 'unreadable-data' : 'no-data');
+      }
+    }, 2000);
+  }
+
   function onDisconnected() {
+    clearInterval(pollTimer);
     setStatus('disconnected');
     emit('disconnected');
     flush();
@@ -482,5 +544,9 @@ const ojasAlerts = (() => {
 })();
 
 ojasBand.on('alert', (code) => ojasAlerts.fromBand(code));
-ojasBand.on('problem', () => ojasToast('The band\'s data is arriving incomplete. See the README "OJAS Band" section.'));
+ojasBand.on('problem', (kind) => ojasToast({
+  'incomplete-data': 'The band\'s data is arriving incomplete. See the README "OJAS Band" section.',
+  'unreadable-data': 'The band is sending data the app cannot read. Press F12 → Console to see it.',
+  'no-data': 'Connected, but the band is not sending readings. Press F12 → Console for details.',
+}[kind]));
 document.addEventListener('DOMContentLoaded', () => { ojasBand.autoConnect(); });
