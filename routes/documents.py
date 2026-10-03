@@ -3,7 +3,6 @@ from config import supabase
 import uuid
 import os
 
-
 documents_bp = Blueprint(
     "documents",
     __name__,
@@ -11,11 +10,8 @@ documents_bp = Blueprint(
 )
 
 
-# --------------------------------------------------
-# AUTHENTICATION
-# --------------------------------------------------
-
 def get_current_user():
+
     auth_header = request.headers.get("Authorization")
 
     if not auth_header or not auth_header.startswith("Bearer "):
@@ -26,13 +22,10 @@ def get_current_user():
     try:
         response = supabase.auth.get_user(access_token)
         return response.user
+
     except Exception:
         return None
 
-
-# --------------------------------------------------
-# LIST USER DOCUMENTS
-# --------------------------------------------------
 
 @documents_bp.route("", methods=["GET"])
 def get_documents():
@@ -46,6 +39,7 @@ def get_documents():
         }), 401
 
     try:
+
         response = (
             supabase
             .table("documents")
@@ -67,10 +61,6 @@ def get_documents():
             "message": str(e)
         }), 500
 
-
-# --------------------------------------------------
-# UPLOAD DOCUMENT
-# --------------------------------------------------
 
 @documents_bp.route("/upload", methods=["POST"])
 def upload_document():
@@ -99,33 +89,27 @@ def upload_document():
                 "message": "Invalid file"
             }), 400
 
-        # Original filename
         original_filename = file.filename
-
-        # File extension
         extension = os.path.splitext(original_filename)[1].lower()
 
-        # Unique filename
         unique_filename = f"{uuid.uuid4()}{extension}"
 
-        # User-specific storage folder
         storage_path = f"{user.id}/{unique_filename}"
 
-        # Read file
         file_data = file.read()
 
-        # Upload to private Supabase Storage bucket
         supabase.storage \
             .from_("medical-documents") \
             .upload(
                 storage_path,
                 file_data,
                 {
-                    "content-type": file.content_type or "application/octet-stream"
+                    "content-type":
+                        file.content_type or
+                        "application/octet-stream"
                 }
             )
 
-        # Save metadata in database
         document_data = {
             "user_id": user.id,
             "file_name": original_filename,
@@ -155,10 +139,6 @@ def upload_document():
         }), 500
 
 
-# --------------------------------------------------
-# DELETE DOCUMENT
-# --------------------------------------------------
-
 @documents_bp.route("/<document_id>", methods=["DELETE"])
 def delete_document(document_id):
 
@@ -172,7 +152,6 @@ def delete_document(document_id):
 
     try:
 
-        # Find document belonging to current user
         response = (
             supabase
             .table("documents")
@@ -193,12 +172,10 @@ def delete_document(document_id):
 
         storage_path = document["storage_path"]
 
-        # Delete from Supabase Storage
         supabase.storage \
             .from_("medical-documents") \
             .remove([storage_path])
 
-        # Delete database record
         (
             supabase
             .table("documents")

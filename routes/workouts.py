@@ -2,6 +2,10 @@ from flask import Blueprint, request, jsonify
 from config import supabase
 
 
+# ==================================================
+# WORKOUT BLUEPRINT
+# ==================================================
+
 workouts_bp = Blueprint(
     "workouts",
     __name__,
@@ -9,11 +13,12 @@ workouts_bp = Blueprint(
 )
 
 
-# --------------------------------------------------
+# ==================================================
 # AUTHENTICATION
-# --------------------------------------------------
+# ==================================================
 
 def get_current_user():
+
     auth_header = request.headers.get("Authorization")
 
     if not auth_header or not auth_header.startswith("Bearer "):
@@ -24,13 +29,14 @@ def get_current_user():
     try:
         response = supabase.auth.get_user(access_token)
         return response.user
+
     except Exception:
         return None
 
 
-# --------------------------------------------------
-# GET WORKOUTS
-# --------------------------------------------------
+# ==================================================
+# GET ALL WORKOUTS
+# ==================================================
 
 @workouts_bp.route("", methods=["GET"])
 def get_workouts():
@@ -67,9 +73,9 @@ def get_workouts():
         }), 500
 
 
-# --------------------------------------------------
+# ==================================================
 # CREATE WORKOUT
-# --------------------------------------------------
+# ==================================================
 
 @workouts_bp.route("", methods=["POST"])
 def create_workout():
@@ -130,9 +136,10 @@ def create_workout():
         }), 500
 
 
-# --------------------------------------------------
-# GET ONE WORKOUT WITH EXERCISES
-# --------------------------------------------------
+# ==================================================
+# GET ONE WORKOUT
+# INCLUDING EXERCISES AND SETS
+# ==================================================
 
 @workouts_bp.route("/<workout_id>", methods=["GET"])
 def get_workout(workout_id):
@@ -147,6 +154,10 @@ def get_workout(workout_id):
 
     try:
 
+        # --------------------------------------------------
+        # GET WORKOUT
+        # --------------------------------------------------
+
         workout_response = (
             supabase
             .table("workouts")
@@ -159,6 +170,17 @@ def get_workout(workout_id):
 
         workout = workout_response.data
 
+        if not workout:
+            return jsonify({
+                "status": "error",
+                "message": "Workout not found"
+            }), 404
+
+
+        # --------------------------------------------------
+        # GET EXERCISES
+        # --------------------------------------------------
+
         exercises_response = (
             supabase
             .table("workout_exercises")
@@ -170,21 +192,31 @@ def get_workout(workout_id):
 
         exercises = exercises_response.data
 
-        # Get sets for each exercise
+
+        # --------------------------------------------------
+        # GET SETS FOR EACH EXERCISE
+        # --------------------------------------------------
+
         for exercise in exercises:
 
             sets_response = (
                 supabase
                 .table("workout_sets")
                 .select("*")
-                .eq("workout_exercise_id", exercise["id"])
+                .eq(
+                    "workout_exercise_id",
+                    exercise["id"]
+                )
                 .order("set_number")
                 .execute()
             )
 
             exercise["sets"] = sets_response.data
 
+
+        # Add exercises to workout
         workout["exercises"] = exercises
+
 
         return jsonify({
             "status": "success",
@@ -199,11 +231,14 @@ def get_workout(workout_id):
         }), 500
 
 
-# --------------------------------------------------
+# ==================================================
 # ADD EXERCISE TO WORKOUT
-# --------------------------------------------------
+# ==================================================
 
-@workouts_bp.route("/<workout_id>/exercises", methods=["POST"])
+@workouts_bp.route(
+    "/<workout_id>/exercises",
+    methods=["POST"]
+)
 def add_exercise(workout_id):
 
     user = get_current_user()
@@ -216,7 +251,10 @@ def add_exercise(workout_id):
 
     try:
 
-        # Make sure workout belongs to current user
+        # --------------------------------------------------
+        # VERIFY WORKOUT BELONGS TO USER
+        # --------------------------------------------------
+
         workout = (
             supabase
             .table("workouts")
@@ -232,6 +270,11 @@ def add_exercise(workout_id):
                 "message": "Workout not found"
             }), 404
 
+
+        # --------------------------------------------------
+        # GET REQUEST DATA
+        # --------------------------------------------------
+
         data = request.get_json()
 
         if not data:
@@ -240,11 +283,29 @@ def add_exercise(workout_id):
                 "message": "No exercise data provided"
             }), 400
 
+
+        exercise_name = data.get("exercise_name")
+
+        if not exercise_name:
+            return jsonify({
+                "status": "error",
+                "message": "exercise_name is required"
+            }), 400
+
+
         exercise_data = {
             "workout_id": workout_id,
-            "exercise_name": data.get("exercise_name"),
-            "exercise_order": data.get("exercise_order", 1)
+            "exercise_name": exercise_name,
+            "exercise_order": data.get(
+                "exercise_order",
+                1
+            )
         }
+
+
+        # --------------------------------------------------
+        # INSERT EXERCISE
+        # --------------------------------------------------
 
         response = (
             supabase
@@ -252,6 +313,7 @@ def add_exercise(workout_id):
             .insert(exercise_data)
             .execute()
         )
+
 
         return jsonify({
             "status": "success",
@@ -267,9 +329,9 @@ def add_exercise(workout_id):
         }), 500
 
 
-# --------------------------------------------------
+# ==================================================
 # ADD SET TO EXERCISE
-# --------------------------------------------------
+# ==================================================
 
 @workouts_bp.route(
     "/exercises/<exercise_id>/sets",
@@ -295,7 +357,11 @@ def add_set(exercise_id):
                 "message": "No set data provided"
             }), 400
 
-        # Make sure the exercise belongs to the user's workout
+
+        # --------------------------------------------------
+        # FIND EXERCISE
+        # --------------------------------------------------
+
         exercise_response = (
             supabase
             .table("workout_exercises")
@@ -310,7 +376,13 @@ def add_set(exercise_id):
                 "message": "Exercise not found"
             }), 404
 
+
         workout_id = exercise_response.data[0]["workout_id"]
+
+
+        # --------------------------------------------------
+        # VERIFY WORKOUT BELONGS TO USER
+        # --------------------------------------------------
 
         workout_response = (
             supabase
@@ -327,19 +399,34 @@ def add_set(exercise_id):
                 "message": "Unauthorized workout"
             }), 403
 
+
+        # --------------------------------------------------
+        # CREATE SET
+        # --------------------------------------------------
+
         set_data = {
             "workout_exercise_id": exercise_id,
             "set_number": data.get("set_number"),
             "weight_kg": data.get("weight_kg"),
             "reps": data.get("reps"),
-            "completed": data.get("completed", False)
+            "completed": data.get(
+                "completed",
+                False
+            )
         }
 
+
+        # Remove missing optional fields
         set_data = {
             key: value
             for key, value in set_data.items()
             if value is not None
         }
+
+
+        # --------------------------------------------------
+        # INSERT SET
+        # --------------------------------------------------
 
         response = (
             supabase
@@ -347,6 +434,7 @@ def add_set(exercise_id):
             .insert(set_data)
             .execute()
         )
+
 
         return jsonify({
             "status": "success",
@@ -362,11 +450,14 @@ def add_set(exercise_id):
         }), 500
 
 
-# --------------------------------------------------
+# ==================================================
 # DELETE WORKOUT
-# --------------------------------------------------
+# ==================================================
 
-@workouts_bp.route("/<workout_id>", methods=["DELETE"])
+@workouts_bp.route(
+    "/<workout_id>",
+    methods=["DELETE"]
+)
 def delete_workout(workout_id):
 
     user = get_current_user()
@@ -379,7 +470,25 @@ def delete_workout(workout_id):
 
     try:
 
-        response = (
+        # Verify ownership before deleting
+        workout = (
+            supabase
+            .table("workouts")
+            .select("id")
+            .eq("id", workout_id)
+            .eq("user_id", user.id)
+            .execute()
+        )
+
+        if not workout.data:
+            return jsonify({
+                "status": "error",
+                "message": "Workout not found"
+            }), 404
+
+
+        # Delete workout
+        (
             supabase
             .table("workouts")
             .delete()
@@ -387,6 +496,7 @@ def delete_workout(workout_id):
             .eq("user_id", user.id)
             .execute()
         )
+
 
         return jsonify({
             "status": "success",

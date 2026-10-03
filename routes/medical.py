@@ -1,7 +1,6 @@
 from flask import Blueprint, request, jsonify
 from config import supabase
 
-
 medical_bp = Blueprint(
     "medical",
     __name__,
@@ -9,11 +8,8 @@ medical_bp = Blueprint(
 )
 
 
-# =========================================================
-# Helper: get logged-in user
-# =========================================================
-
 def get_current_user():
+
     auth_header = request.headers.get("Authorization")
 
     if not auth_header or not auth_header.startswith("Bearer "):
@@ -24,14 +20,10 @@ def get_current_user():
     try:
         response = supabase.auth.get_user(access_token)
         return response.user
+
     except Exception:
         return None
 
-
-# =========================================================
-# GET MEDICAL INFORMATION
-# GET /api/medical
-# =========================================================
 
 @medical_bp.route("", methods=["GET"])
 def get_medical_info():
@@ -68,11 +60,6 @@ def get_medical_info():
         }), 500
 
 
-# =========================================================
-# CREATE / UPDATE MEDICAL INFORMATION
-# PUT /api/medical
-# =========================================================
-
 @medical_bp.route("", methods=["PUT"])
 def update_medical_info():
 
@@ -94,11 +81,6 @@ def update_medical_info():
                 "message": "No medical information provided"
             }), 400
 
-
-        # -------------------------------------------------
-        # Medical fields used by OJAS
-        # -------------------------------------------------
-
         allowed_fields = [
             "allergies",
             "medical_conditions",
@@ -106,26 +88,17 @@ def update_medical_info():
             "notes"
         ]
 
-
         medical_data = {}
 
         for field in allowed_fields:
-
             if field in data:
                 medical_data[field] = data[field]
 
-
         if not medical_data:
-
             return jsonify({
                 "status": "error",
                 "message": "No valid medical fields provided"
             }), 400
-
-
-        # -------------------------------------------------
-        # Check whether medical information already exists
-        # -------------------------------------------------
 
         existing = (
             supabase
@@ -134,11 +107,6 @@ def update_medical_info():
             .eq("user_id", user.id)
             .execute()
         )
-
-
-        # -------------------------------------------------
-        # Update existing record
-        # -------------------------------------------------
 
         if existing.data:
 
@@ -149,11 +117,6 @@ def update_medical_info():
                 .eq("user_id", user.id)
                 .execute()
             )
-
-
-        # -------------------------------------------------
-        # Create first medical record
-        # -------------------------------------------------
 
         else:
 
@@ -166,13 +129,11 @@ def update_medical_info():
                 .execute()
             )
 
-
         return jsonify({
             "status": "success",
             "message": "Medical information saved successfully",
             "medical_info": response.data
         }), 200
-
 
     except Exception as e:
 

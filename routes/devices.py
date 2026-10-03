@@ -1,7 +1,6 @@
 from flask import Blueprint, request, jsonify
 from config import supabase
 
-
 devices_bp = Blueprint(
     "devices",
     __name__,
@@ -9,11 +8,8 @@ devices_bp = Blueprint(
 )
 
 
-# --------------------------------------------------
-# AUTHENTICATION
-# --------------------------------------------------
-
 def get_current_user():
+
     auth_header = request.headers.get("Authorization")
 
     if not auth_header or not auth_header.startswith("Bearer "):
@@ -24,13 +20,10 @@ def get_current_user():
     try:
         response = supabase.auth.get_user(access_token)
         return response.user
+
     except Exception:
         return None
 
-
-# --------------------------------------------------
-# GET USER'S DEVICES
-# --------------------------------------------------
 
 @devices_bp.route("", methods=["GET"])
 def get_devices():
@@ -44,6 +37,7 @@ def get_devices():
         }), 401
 
     try:
+
         response = (
             supabase
             .table("devices")
@@ -65,10 +59,6 @@ def get_devices():
             "message": str(e)
         }), 500
 
-
-# --------------------------------------------------
-# PAIR / REGISTER DEVICE
-# --------------------------------------------------
 
 @devices_bp.route("/pair", methods=["POST"])
 def pair_device():
@@ -100,7 +90,6 @@ def pair_device():
                 "message": "device_id is required"
             }), 400
 
-        # Check if device already exists
         existing = (
             supabase
             .table("devices")
@@ -111,7 +100,6 @@ def pair_device():
 
         if existing.data:
 
-            # Reconnect existing device to this user
             response = (
                 supabase
                 .table("devices")
@@ -153,10 +141,6 @@ def pair_device():
             "message": str(e)
         }), 500
 
-
-# --------------------------------------------------
-# UPDATE DEVICE
-# --------------------------------------------------
 
 @devices_bp.route("/<device_id>", methods=["PUT"])
 def update_device(device_id):
@@ -219,10 +203,6 @@ def update_device(device_id):
         }), 500
 
 
-# --------------------------------------------------
-# UNPAIR DEVICE
-# --------------------------------------------------
-
 @devices_bp.route("/<device_id>", methods=["DELETE"])
 def unpair_device(device_id):
 
@@ -236,7 +216,7 @@ def unpair_device(device_id):
 
     try:
 
-        response = (
+        (
             supabase
             .table("devices")
             .update({

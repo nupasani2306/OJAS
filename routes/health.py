@@ -1,7 +1,6 @@
 from flask import Blueprint, request, jsonify
 from config import supabase
 
-
 health_bp = Blueprint(
     "health",
     __name__,
@@ -9,11 +8,8 @@ health_bp = Blueprint(
 )
 
 
-# --------------------------------------------------
-# AUTHENTICATION
-# --------------------------------------------------
-
 def get_current_user():
+
     auth_header = request.headers.get("Authorization")
 
     if not auth_header or not auth_header.startswith("Bearer "):
@@ -24,13 +20,10 @@ def get_current_user():
     try:
         response = supabase.auth.get_user(access_token)
         return response.user
+
     except Exception:
         return None
 
-
-# --------------------------------------------------
-# GET HEALTH READINGS
-# --------------------------------------------------
 
 @health_bp.route("/readings", methods=["GET"])
 def get_readings():
@@ -72,10 +65,6 @@ def get_readings():
             "message": str(e)
         }), 500
 
-
-# --------------------------------------------------
-# ADD HEALTH READING
-# --------------------------------------------------
 
 @health_bp.route("/readings", methods=["POST"])
 def add_reading():
@@ -157,10 +146,6 @@ def add_reading():
             "message": str(e)
         }), 500
 
-
-# --------------------------------------------------
-# DAILY HEALTH SUMMARY
-# --------------------------------------------------
 
 @health_bp.route("/summary", methods=["GET"])
 def get_daily_summary():

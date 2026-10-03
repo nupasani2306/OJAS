@@ -1,7 +1,6 @@
 from flask import Blueprint, request, jsonify
 from config import supabase
 
-
 sleep_bp = Blueprint(
     "sleep",
     __name__,
@@ -9,11 +8,8 @@ sleep_bp = Blueprint(
 )
 
 
-# --------------------------------------------------
-# AUTHENTICATION
-# --------------------------------------------------
-
 def get_current_user():
+
     auth_header = request.headers.get("Authorization")
 
     if not auth_header or not auth_header.startswith("Bearer "):
@@ -24,13 +20,10 @@ def get_current_user():
     try:
         response = supabase.auth.get_user(access_token)
         return response.user
+
     except Exception:
         return None
 
-
-# --------------------------------------------------
-# GET SLEEP SESSIONS
-# --------------------------------------------------
 
 @sleep_bp.route("", methods=["GET"])
 def get_sleep_sessions():
@@ -66,10 +59,6 @@ def get_sleep_sessions():
             "message": str(e)
         }), 500
 
-
-# --------------------------------------------------
-# ADD SLEEP SESSION
-# --------------------------------------------------
 
 @sleep_bp.route("", methods=["POST"])
 def add_sleep_session():
@@ -142,10 +131,6 @@ def add_sleep_session():
         }), 500
 
 
-# --------------------------------------------------
-# DELETE SLEEP SESSION
-# --------------------------------------------------
-
 @sleep_bp.route("/<session_id>", methods=["DELETE"])
 def delete_sleep_session(session_id):
 
@@ -159,7 +144,7 @@ def delete_sleep_session(session_id):
 
     try:
 
-        response = (
+        (
             supabase
             .table("sleep_sessions")
             .delete()

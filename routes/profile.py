@@ -1,7 +1,6 @@
 from flask import Blueprint, request, jsonify
 from config import supabase
 
-
 profile_bp = Blueprint(
     "profile",
     __name__,
@@ -9,11 +8,8 @@ profile_bp = Blueprint(
 )
 
 
-# =========================================================
-# Helper: get logged-in user
-# =========================================================
-
 def get_current_user():
+
     auth_header = request.headers.get("Authorization")
 
     if not auth_header or not auth_header.startswith("Bearer "):
@@ -24,14 +20,10 @@ def get_current_user():
     try:
         response = supabase.auth.get_user(access_token)
         return response.user
+
     except Exception:
         return None
 
-
-# =========================================================
-# GET PROFILE
-# GET /api/profile
-# =========================================================
 
 @profile_bp.route("", methods=["GET"])
 def get_profile():
@@ -68,11 +60,6 @@ def get_profile():
         }), 500
 
 
-# =========================================================
-# UPDATE PROFILE
-# PUT /api/profile
-# =========================================================
-
 @profile_bp.route("", methods=["PUT"])
 def update_profile():
 
@@ -94,11 +81,6 @@ def update_profile():
                 "message": "No profile data provided"
             }), 400
 
-
-        # -------------------------------------------------
-        # Fields used by the current OJAS Profile screen
-        # -------------------------------------------------
-
         allowed_fields = [
             "full_name",
             "date_of_birth",
@@ -109,26 +91,17 @@ def update_profile():
             "phone"
         ]
 
-
         update_data = {}
 
         for field in allowed_fields:
-
             if field in data:
                 update_data[field] = data[field]
 
-
         if not update_data:
-
             return jsonify({
                 "status": "error",
                 "message": "No valid profile fields provided"
             }), 400
-
-
-        # -------------------------------------------------
-        # Update user's profile
-        # -------------------------------------------------
 
         response = (
             supabase
@@ -138,13 +111,11 @@ def update_profile():
             .execute()
         )
 
-
         return jsonify({
             "status": "success",
             "message": "Profile updated successfully",
             "profile": response.data
         }), 200
-
 
     except Exception as e:
 

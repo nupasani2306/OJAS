@@ -1,7 +1,6 @@
 from flask import Blueprint, request, jsonify
 from config import supabase
 
-
 emergency_bp = Blueprint(
     "emergency",
     __name__,
@@ -9,11 +8,8 @@ emergency_bp = Blueprint(
 )
 
 
-# --------------------------------------------------
-# AUTHENTICATION
-# --------------------------------------------------
-
 def get_current_user():
+
     auth_header = request.headers.get("Authorization")
 
     if not auth_header or not auth_header.startswith("Bearer "):
@@ -24,13 +20,10 @@ def get_current_user():
     try:
         response = supabase.auth.get_user(access_token)
         return response.user
+
     except Exception:
         return None
 
-
-# --------------------------------------------------
-# GET EMERGENCY CONTACTS
-# --------------------------------------------------
 
 @emergency_bp.route("/contacts", methods=["GET"])
 def get_contacts():
@@ -44,6 +37,7 @@ def get_contacts():
         }), 401
 
     try:
+
         response = (
             supabase
             .table("emergency_contacts")
@@ -65,10 +59,6 @@ def get_contacts():
             "message": str(e)
         }), 500
 
-
-# --------------------------------------------------
-# ADD EMERGENCY CONTACT
-# --------------------------------------------------
 
 @emergency_bp.route("/contacts", methods=["POST"])
 def add_contact():
@@ -131,10 +121,6 @@ def add_contact():
         }), 500
 
 
-# --------------------------------------------------
-# DELETE EMERGENCY CONTACT
-# --------------------------------------------------
-
 @emergency_bp.route("/contacts/<contact_id>", methods=["DELETE"])
 def delete_contact(contact_id):
 
@@ -148,7 +134,7 @@ def delete_contact(contact_id):
 
     try:
 
-        response = (
+        (
             supabase
             .table("emergency_contacts")
             .delete()
@@ -169,10 +155,6 @@ def delete_contact(contact_id):
             "message": str(e)
         }), 500
 
-
-# --------------------------------------------------
-# GET SOS EVENTS
-# --------------------------------------------------
 
 @emergency_bp.route("/events", methods=["GET"])
 def get_sos_events():

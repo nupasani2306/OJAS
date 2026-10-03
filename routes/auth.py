@@ -1,12 +1,12 @@
 from flask import Blueprint, request, jsonify
 from config import supabase
 
-auth_bp = Blueprint("auth", __name__, url_prefix="/api/auth")
+auth_bp = Blueprint(
+    "auth",
+    __name__,
+    url_prefix="/api/auth"
+)
 
-
-# ==================================================
-# SIGNUP
-# ==================================================
 
 @auth_bp.route("/signup", methods=["POST"])
 def signup():
@@ -31,7 +31,8 @@ def signup():
         return jsonify({
             "status": "success",
             "message": "Signup request successful",
-            "user": response.user.model_dump() if response.user else None
+            "user": response.user.model_dump()
+            if response.user else None
         }), 201
 
     except Exception as e:
@@ -41,10 +42,6 @@ def signup():
             "message": str(e)
         }), 500
 
-
-# ==================================================
-# LOGIN
-# ==================================================
 
 @auth_bp.route("/login", methods=["POST"])
 def login():
@@ -81,10 +78,6 @@ def login():
             "message": str(e)
         }), 401
 
-
-# ==================================================
-# LOGOUT
-# ==================================================
 
 @auth_bp.route("/logout", methods=["POST"])
 def logout():

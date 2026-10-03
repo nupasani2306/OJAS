@@ -1,7 +1,6 @@
 from flask import Blueprint, request, jsonify
 from config import supabase
 
-
 chat_bp = Blueprint(
     "chat",
     __name__,
@@ -9,11 +8,8 @@ chat_bp = Blueprint(
 )
 
 
-# --------------------------------------------------
-# AUTHENTICATION
-# --------------------------------------------------
-
 def get_current_user():
+
     auth_header = request.headers.get("Authorization")
 
     if not auth_header or not auth_header.startswith("Bearer "):
@@ -24,13 +20,10 @@ def get_current_user():
     try:
         response = supabase.auth.get_user(access_token)
         return response.user
+
     except Exception:
         return None
 
-
-# --------------------------------------------------
-# GET CHAT HISTORY
-# --------------------------------------------------
 
 @chat_bp.route("", methods=["GET"])
 def get_messages():
@@ -66,10 +59,6 @@ def get_messages():
             "message": str(e)
         }), 500
 
-
-# --------------------------------------------------
-# SEND CHAT MESSAGE
-# --------------------------------------------------
 
 @chat_bp.route("", methods=["POST"])
 def send_message():
@@ -127,10 +116,6 @@ def send_message():
             "message": str(e)
         }), 500
 
-
-# --------------------------------------------------
-# DELETE CHAT HISTORY
-# --------------------------------------------------
 
 @chat_bp.route("", methods=["DELETE"])
 def delete_chat():
