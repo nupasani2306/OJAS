@@ -1,4 +1,5 @@
-// Home page data from the OJAS backend: today's metric cards, the band card, and SOS logging.
+// Home page data from the OJAS backend: today's metric cards, the band card, the SOS button
+// and the fall alert.
 // Also refreshes the cached profile, contacts and messages that the QR code and SOS share use.
 (function () {
   const setAll = (selector, text) => document.querySelectorAll(selector).forEach((el) => { el.textContent = text; });
@@ -49,17 +50,84 @@
     });
   }
 
-  // Log every SOS press on the server (with location if the person allows it).
-  const sos = document.querySelector('.sos');
-  if (sos) {
-    sos.addEventListener('click', () => {
-      const send = (coords) => apiFetch('/api/emergency/events', {
+  /* ---------- SOS button: SOS message → SOS contacts ---------- */
+  // Opens the Messages app with every SOS contact and the SOS message filled in, then logs the alert.
+  const logAlert = async (type, coords) => {
+    try {
+      const { event } = await apiFetch('/api/emergency/events', {
         method: 'POST',
-        body: { event_type: 'SOS', ...(coords ? { latitude: coords.latitude, longitude: coords.longitude } : {}) },
-      }).catch(() => { /* the share sheet still opens even if logging fails */ });
-      if (!navigator.geolocation) { send(null); return; }
-      navigator.geolocation.getCurrentPosition((pos) => send(pos.coords), () => send(null), { timeout: 5000, maximumAge: 60000 });
+        body: { event_type: type, ...(coords ? { latitude: coords.latitude, longitude: coords.longitude } : {}) },
+      });
+      // SENT = handed to the Messages app (the person still taps Send there).
+      await apiFetch(`/api/emergency/events/${event.id}`, { method: 'PATCH', body: { status: 'SENT' } });
+    } catch { /* logging must never block the alert */ }
+  };
+
+  const sos = document.querySelector('.sos');
+  let sosBusy = false;
+  if (sos) {
+    sos.addEventListener('click', async () => {
+      if (sosBusy) return;
+      sosBusy = true;
+      try {
+        const sent = await ojasAlert.send('sos');
+        if (sent) logAlert('SOS', sent.coords);
+      } finally {
+        sosBusy = false;
+      }
     });
+  }
+
+  /* ---------- Fall detected by the band: Emergency message → Emergency contacts ---------- */
+  // The band reports a fall as a PENDING "FALL" event. Ask the person straight away; one tap opens
+  // the Messages app with the Emergency message (a browser only opens it from a tap).
+  const fallModal = document.getElementById('fall-alert');
+  const handled = new Set(JSON.parse(sessionStorage.getItem('ojas.handledFalls') || '[]'));
+  let fallEvent = null;
+
+  function showFall(event) {
+    fallEvent = event;
+    document.getElementById('fall-time').textContent =
+      new Date(event.triggered_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    fallModal.hidden = false;
+    document.body.classList.add('modal-open');
+    if (navigator.vibrate) navigator.vibrate([400, 200, 400, 200, 400]);
+    document.getElementById('fall-send').focus();
+  }
+
+  function closeFall(status) {
+    const event = fallEvent;
+    fallEvent = null;
+    fallModal.hidden = true;
+    document.body.classList.remove('modal-open');
+    handled.add(event.id);
+    sessionStorage.setItem('ojas.handledFalls', JSON.stringify([...handled]));
+    if (status) apiFetch(`/api/emergency/events/${event.id}`, { method: 'PATCH', body: { status } }).catch(() => {});
+  }
+
+  async function checkFalls() {
+    if (!fallModal || fallEvent || document.hidden) return;
+    try {
+      const { events } = await apiFetch('/api/emergency/events');
+      const recent = Date.now() - 15 * 60 * 1000;
+      const fall = events.find((e) => e.event_type === 'FALL' && e.status === 'PENDING'
+        && Date.parse(e.triggered_at) > recent && !handled.has(e.id));
+      if (fall) showFall(fall);
+    } catch { /* try again on the next check */ }
+  }
+
+  if (fallModal) {
+    document.getElementById('fall-send').addEventListener('click', async () => {
+      const event = fallEvent;
+      const coords = event.latitude != null && event.longitude != null
+        ? { latitude: Number(event.latitude), longitude: Number(event.longitude) } : undefined;
+      const sent = await ojasAlert.send('emergency', coords);
+      if (sent) closeFall('SENT');
+    });
+    document.getElementById('fall-ok').addEventListener('click', () => closeFall('CANCELLED'));
+    checkFalls();
+    setInterval(checkFalls, 20000);
+    document.addEventListener('visibilitychange', checkFalls);
   }
 
   load();

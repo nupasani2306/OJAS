@@ -111,6 +111,20 @@
       <strong>SOS</strong>
     </button>
 
+    <!-- Fall alert (shown when the band reports a fall) -->
+    <div class="docs-modal fall-modal" id="fall-alert" hidden>
+      <div class="modal-backdrop"></div>
+      <section class="docs-dialog fall-dialog" role="alertdialog" aria-modal="true" aria-labelledby="fall-title" aria-describedby="fall-text">
+        <span class="fall-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M12 3 2 21h20Z"/><path d="M12 10v5M12 18h.01"/></svg>
+        </span>
+        <h2 id="fall-title">Fall detected</h2>
+        <p id="fall-text">Your band detected a fall at <strong id="fall-time"></strong>. Send your emergency message to your emergency contacts?</p>
+        <button type="button" class="btn-primary fall-send" id="fall-send">Send emergency message</button>
+        <button type="button" class="btn-ghost fall-ok" id="fall-ok">I'm OK</button>
+      </section>
+    </div>
+
     <!-- Quick actions -->
     <section class="actions">
       <a href="beast-mode.html" class="card action">
