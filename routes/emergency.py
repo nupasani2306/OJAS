@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 
 from flask import Blueprint, g
 
+import sms
 from routes.common import body, error, ok, require_auth
 
 emergency_bp = Blueprint("emergency", __name__, url_prefix="/api/emergency")
@@ -118,3 +119,81 @@ def update_event(event_id):
     if not response.data:
         return error("Event not found", 404)
     return ok(event=response.data[0])
+
+
+# ------------------------------------------------------------------ alert the contacts
+DEFAULT_MESSAGES = {   # same wording as the app's defaults (api.js ojasAlert.defaultMessage)
+    "SOS": "SOS! {name} needs immediate help. Please check on me or call emergency services.",
+    "FALL": "This is {name}. I need help urgently. Please call me or come to my location as soon as possible.",
+}
+
+
+def alert_text(event):
+    """The user's saved SOS / emergency message (or the default), plus a map link when known."""
+    field = "sos_message" if event["event_type"] == "SOS" else "emergency_message"
+    text = None
+    try:
+        row = (g.db.table("user_settings").select(field).eq("user_id", g.user.id)
+               .maybe_single().execute())
+        text = row.data.get(field) if row and row.data else None
+    except Exception:
+        pass   # column not added yet (migration not applied): use the default message
+    if not text:
+        profile = (g.db.table("user_profiles").select("full_name").eq("user_id", g.user.id)
+                   .maybe_single().execute())
+        full_name = (profile.data or {}).get("full_name") if profile else None
+        text = DEFAULT_MESSAGES[event["event_type"]].format(name=(full_name or "OJAS user").split()[0])
+    if event.get("latitude") is not None and event.get("longitude") is not None:
+        text += (f"\n\nMy location: https://maps.google.com/?q="
+                 f"{float(event['latitude']):.6f},{float(event['longitude']):.6f}")
+    return text
+
+
+@emergency_bp.route("/events/<event_id>/notify", methods=["POST"])
+@require_auth
+def notify_contacts(event_id):
+    """Send the event's alert by SMS: SOS -> SOS contacts, FALL -> emergency contacts.
+
+    Sends at most once per event: the event is claimed (PENDING -> SENT) before sending,
+    so a repeated or simultaneous request for the same event sends nothing.
+    """
+    found = (g.db.table("sos_events").select("*").eq("id", event_id).eq("user_id", g.user.id)
+             .maybe_single().execute())
+    event = found.data if found else None
+    if not event:
+        return error("Event not found", 404)
+    if event["status"] == "CANCELLED":
+        return error("This alert was cancelled", 409)
+    if event["status"] != "PENDING":
+        return ok(already_sent=True, sent=[], failed=[], message="Your contacts were already alerted")
+
+    flag = "use_for_sos" if event["event_type"] == "SOS" else "use_for_emergency"
+    contacts = (g.db.table("emergency_contacts").select("name,phone").eq("user_id", g.user.id)
+                .eq(flag, True).execute()).data
+    if not contacts:
+        kind = "SOS" if event["event_type"] == "SOS" else "emergency"
+        return error(f"No {kind} contacts saved. Add them on the Emergency page.", 400, no_contacts=True)
+
+    text = alert_text(event)
+    fallback = {"text": text, "phones": [c["phone"] for c in contacts]}
+    if not sms.configured():
+        return error("Automatic SMS is not set up on the server", 503, sms_configured=False, **fallback)
+
+    claimed = (g.db.table("sos_events").update({"status": "SENT"}).eq("id", event_id)
+               .eq("user_id", g.user.id).eq("status", "PENDING").execute())
+    if not claimed.data:
+        return ok(already_sent=True, sent=[], failed=[], message="Your contacts were already alerted")
+
+    sent, failed = [], []
+    for contact in contacts:
+        success, reason = sms.send(contact["phone"], text)
+        if success:
+            sent.append(contact["name"])
+        else:
+            failed.append({"name": contact["name"], "reason": reason})
+
+    if not sent:   # nothing went out: release the event so the app can fall back
+        (g.db.table("sos_events").update({"status": "PENDING"}).eq("id", event_id)
+         .eq("user_id", g.user.id).execute())
+        return error("The SMS could not be sent", 502, sms_configured=True, failed=failed, **fallback)
+    return ok(sent=sent, failed=failed, message=f"Alert sent to {len(sent)} contact(s)")

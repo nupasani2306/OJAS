@@ -137,8 +137,9 @@ const ojasBand = (() => {
     const code = match[0].startsWith('CANCEL') ? 'CANCELLED' : match[0];
     // The band re-sends FALL and SOS every few seconds until the app answers ACK.
     if (code === 'FALL' || code === 'SOS') command('ACK');
-    // The same alert repeated (re-sent or re-notified) is one alert, not several.
-    if (code === lastAlert.code && Date.now() - lastAlert.at < 30000) return;
+    // The same notification delivered twice in a row is one alert. Repeats of an emergency
+    // (the band re-sends FALL / SOS until ACK) are handled in ojasAlerts.
+    if (code === lastAlert.code && Date.now() - lastAlert.at < 2000) return;
     lastAlert = { code, at: Date.now() };
     emit('alert', code);
   }
@@ -412,11 +413,22 @@ const ojasBand = (() => {
 })();
 
 /* ==========================================================================
-   Fall / SOS dialog: shared by band alerts and fall events found on the server.
-   Uses the existing emergency flow: ojasAlert.send() opens the Messages app for the
-   Emergency (fall) or SOS contacts, and the event is logged on /api/emergency/events.
+   Emergency alerts: SOS and falls, from the band, the SOS button and the server.
+
+   SOS          → the SOS message goes straight to the SOS contacts (no confirmation).
+   FALL_PENDING → warning with a countdown and "Cancel emergency"; if nobody cancels, the
+                  emergency message goes to the emergency contacts when the countdown ends.
+   FALL         → (the band's own countdown ended) send the emergency message now.
+   CANCELLED    → the fall was cancelled on the band: stop the countdown.
+
+   Sending: the event is saved (/api/emergency/events) and the server sends the SMS
+   (/api/emergency/events/<id>/notify). Each event is sent at most once. If the server cannot
+   send SMS (not set up), the phone's Messages app is opened with the same text instead.
    ========================================================================== */
 const ojasAlerts = (() => {
+  const FALL_COUNTDOWN_S = 10;      // same as CANCEL_WINDOW_MS in the band firmware
+  const BAND_REPEAT_MS = 60000;     // the same band alert again within this time is the same emergency
+
   const handled = new Set(JSON.parse(sessionStorage.getItem('ojas.handledAlerts') || '[]'));
   const remember = (id) => {
     if (!id) return;
@@ -424,27 +436,14 @@ const ojasAlerts = (() => {
     sessionStorage.setItem('ojas.handledAlerts', JSON.stringify([...handled].slice(-50)));
   };
 
-  let current = null;   // { kind: 'fallPending' | 'fall' | 'sos', event, eventPromise, coords }
   let modal = null;
+  let actions = {};                 // what the two dialog buttons do right now
+  let visibleKind = null;           // 'countdown' | 'sending' | 'result' | null
+  let countdown = null;             // { endsAt, timer } while a possible fall is being counted down
+  const lastBand = { sos: 0, fall: 0 };
+  const sending = { sos: false, fall: false };
 
-  const TEXT = {
-    fallPending: {
-      title: 'Possible fall detected',
-      text: () => 'Your band detected a possible fall. If you are OK, cancel it on the band or tap "I\'m OK".',
-      send: 'Send emergency message', dismiss: "I'm OK",
-    },
-    fall: {
-      title: 'Fall detected',
-      text: (t) => `Your band detected a fall at <strong>${t}</strong>. Send your emergency message to your emergency contacts?`,
-      send: 'Send emergency message', dismiss: "I'm OK",
-    },
-    sos: {
-      title: 'SOS from your band',
-      text: (t) => `The SOS button on your band was pressed at <strong>${t}</strong>. Send your SOS message to your SOS contacts?`,
-      send: 'Send SOS message', dismiss: 'Cancel',
-    },
-  };
-
+  /* ---------- Dialog ---------- */
   function build() {
     if (modal) return modal;
     modal = document.getElementById('fall-alert');
@@ -460,43 +459,51 @@ const ojasAlerts = (() => {
             <svg viewBox="0 0 24 24"><path d="M12 3 2 21h20Z"/><path d="M12 10v5M12 18h.01"/></svg>
           </span>
           <h2 id="fall-title"></h2>
-          <p id="fall-text"></p>
+          <p id="fall-text" aria-live="polite"></p>
           <button type="button" class="btn-primary fall-send" id="fall-send"></button>
           <button type="button" class="btn-ghost fall-ok" id="fall-ok"></button>
         </section>`;
       document.body.append(modal);
     }
-    modal.querySelector('#fall-send').addEventListener('click', send);
-    modal.querySelector('#fall-ok').addEventListener('click', () => close('CANCELLED'));
+    modal.querySelector('#fall-send').addEventListener('click', () => actions.primary && actions.primary());
+    modal.querySelector('#fall-ok').addEventListener('click', () => actions.secondary && actions.secondary());
     return modal;
   }
 
-  function render() {
+  // view({ kind, title, html, ok, primary: [label, fn], secondary: [label, fn] })
+  function view({ kind, title, html, ok = false, primary = null, secondary = null }) {
     const m = build();
-    const t = TEXT[current.kind];
-    const when = current.event ? new Date(current.event.triggered_at) : new Date();
-    m.querySelector('#fall-title').textContent = t.title;
-    m.querySelector('#fall-text').innerHTML = t.text(when.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }));
-    m.querySelector('#fall-send').textContent = t.send;
-    m.querySelector('#fall-ok').textContent = t.dismiss;
+    visibleKind = kind;
+    m.querySelector('.fall-dialog').classList.toggle('is-ok', ok);
+    m.querySelector('.fall-icon svg').innerHTML = ok
+      ? '<path d="m5 12.5 4.5 4.5L19 7.5"/>'
+      : '<path d="M12 3 2 21h20Z"/><path d="M12 10v5M12 18h.01"/>';
+    m.querySelector('#fall-title').textContent = title;
+    m.querySelector('#fall-text').innerHTML = html;
+    const [p, s] = [m.querySelector('#fall-send'), m.querySelector('#fall-ok')];
+    p.hidden = !primary;
+    s.hidden = !secondary;
+    if (primary) p.textContent = primary[0];
+    if (secondary) s.textContent = secondary[0];
+    actions = { primary: primary && primary[1], secondary: secondary && secondary[1] };
+    const opening = m.hidden;
     m.hidden = false;
     document.body.classList.add('modal-open');
+    if (opening && primary) p.focus();
   }
 
-  function show(kind, { event = null, eventPromise = null, coords } = {}) {
-    current = { kind, event, eventPromise, coords };
-    if (event) remember(event.id);
-    if (eventPromise) {
-      eventPromise.then((ev) => {
-        if (current && current.eventPromise === eventPromise && ev) { current.event = ev; remember(ev.id); }
-      });
-    }
-    render();
-    if (navigator.vibrate) navigator.vibrate([400, 200, 400, 200, 400]);
-    modal.querySelector('#fall-send').focus();
+  function hide() {
+    visibleKind = null;
+    actions = {};
+    if (modal) modal.hidden = true;
+    document.body.classList.remove('modal-open');
   }
 
-  // Log a FALL or SOS event (with the location when the phone can get it).
+  const buzz = () => { if (navigator.vibrate) navigator.vibrate([400, 200, 400, 200, 400]); };
+  const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+  /* ---------- Server ---------- */
+  // Save a FALL or SOS event (with the location when the phone can get it).
   function logEvent(type) {
     return ojasAlert.locate().then((coords) => apiFetch('/api/emergency/events', {
       method: 'POST',
@@ -504,71 +511,150 @@ const ojasAlerts = (() => {
     }).then(({ event }) => { remember(event.id); return event; })).catch(() => null);
   }
 
-  async function eventOf(alert) {
-    if (alert.event) return alert.event;
-    if (alert.eventPromise) return alert.eventPromise;
-    return null;
-  }
-
   function patch(event, status) {
     if (event) apiFetch(`/api/emergency/events/${event.id}`, { method: 'PATCH', body: { status } }).catch(() => {});
   }
 
-  function hide() {
-    current = null;
-    if (modal) modal.hidden = true;
-    document.body.classList.remove('modal-open');
-  }
-
-  async function send() {
-    const alert = current;
-    if (!alert) return;
-    const kind = alert.kind === 'sos' ? 'sos' : 'emergency';
-    const ev = alert.event;
-    const coords = ev && ev.latitude != null && ev.longitude != null
-      ? { latitude: Number(ev.latitude), longitude: Number(ev.longitude) } : undefined;
-    const sent = await ojasAlert.send(kind, coords);   // opens the Messages app (needs this tap)
-    if (!sent) return;
-    hide();
-    let event = await eventOf(alert);
-    if (!event && alert.kind === 'fallPending') event = await logEvent('FALL');
-    patch(event, 'SENT');
-  }
-
-  async function close(status, message, fromBand = false) {
-    const alert = current;
-    if (!alert) return;
-    hide();
-    // "I'm OK" during the band's countdown: tell the band, so it does not send FALL.
-    if (!fromBand && alert.kind === 'fallPending') ojasBand.command('CANCEL');
-    if (message) ojasToast(message, 'ok');
-    patch(await eventOf(alert), status);
-  }
-
-  // Alerts from the band's Alert characteristic.
-  function fromBand(code) {
-    const kind = current && current.kind;
-    if (code === 'FALL_PENDING') {
-      if (kind === 'fallPending' || kind === 'fall') return;
-      show('fallPending');
-    } else if (code === 'FALL') {
-      if (kind === 'fall') return;
-      show('fall', { eventPromise: logEvent('FALL') });
-    } else if (code === 'SOS') {
-      if (kind === 'sos') return;
-      show('sos', { eventPromise: logEvent('SOS') });
-    } else if (code === 'CANCELLED') {
-      if (current && current.kind !== 'sos') close('CANCELLED', 'Alert cancelled on the band.', true);
+  /* ---------- Sending ---------- */
+  // kind: 'sos' (SOS message → SOS contacts) or 'fall' (emergency message → emergency contacts).
+  async function dispatch(kind, { event = null } = {}) {
+    if (sending[kind]) return;
+    sending[kind] = true;
+    const sos = kind === 'sos';
+    try {
+      view({ kind: 'sending', title: sos ? 'Sending SOS…' : 'Sending emergency message…', html: 'Alerting your contacts now.' });
+      buzz();
+      const ev = event || await logEvent(sos ? 'SOS' : 'FALL');
+      if (!ev) return fallback(kind, null, null, 'The OJAS server could not be reached.');
+      remember(ev.id);
+      try {
+        const res = await apiFetch(`/api/emergency/events/${ev.id}/notify`, { method: 'POST' });
+        const failed = (res.failed || []).map((f) => esc(f.name));
+        view({
+          kind: 'result',
+          ok: true,
+          title: res.already_sent ? 'Contacts already alerted' : (sos ? 'SOS sent' : 'Emergency message sent'),
+          html: res.already_sent ? 'Your contacts were already alerted for this emergency.'
+            : `Sent to <strong>${res.sent.map(esc).join(', ')}</strong>.${failed.length ? ` Could not reach ${failed.join(', ')}.` : ''}`,
+          primary: ['OK', hide],
+        });
+      } catch (err) {
+        const d = err.data || {};
+        if (d.no_contacts) {
+          view({
+            kind: 'result',
+            title: 'No contacts to alert',
+            html: esc(err.message),
+            primary: ['Add contacts', () => { location.href = 'emergency.html'; }],
+            secondary: ['Close', hide],
+          });
+        } else if (err.status === 409) {
+          hide();
+        } else {
+          fallback(kind, ev, d.phones && d.text ? d : null, d.sms_configured === false
+            ? 'Automatic SMS is not set up on the server yet.' : err.message);
+        }
+      }
+    } finally {
+      sending[kind] = false;
     }
   }
 
-  // A pending fall event already on the server (for example saved while this page was closed).
-  function fromServer(event) {
-    if (current || handled.has(event.id)) return;
-    show(event.event_type === 'SOS' ? 'sos' : 'fall', { event });
+  // The server could not send: open the Messages app with the same text (one tap on Send there).
+  function fallback(kind, event, serverText, reason) {
+    const open = async () => {
+      if (serverText) ojasAlert.openMessages(serverText.phones, serverText.text);
+      else if (!(await ojasAlert.send(kind === 'sos' ? 'sos' : 'emergency'))) return;
+      patch(event, 'SENT');   // handed to the Messages app
+      hide();
+    };
+    view({
+      kind: 'result',
+      title: kind === 'sos' ? 'Send your SOS' : 'Send your emergency message',
+      html: `${esc(reason)} Tap below to open Messages with your contacts and message filled in, then tap Send.`,
+      primary: ['Open Messages', open],
+      secondary: ['Close', hide],
+    });
+    // Try to open it straight away (works when this follows a tap; otherwise the button is there).
+    if (serverText && ojasAlert.isPhone()) {
+      try { ojasAlert.openMessages(serverText.phones, serverText.text); } catch { /* the button still works */ }
+    }
   }
 
-  return { fromBand, fromServer, get active() { return current ? current.kind : null; } };
+  /* ---------- Fall countdown ---------- */
+  function startCountdown() {
+    if (countdown || sending.fall) return;
+    countdown = { endsAt: Date.now() + FALL_COUNTDOWN_S * 1000 };
+    const tick = () => {
+      if (!countdown) return;
+      const left = Math.max(0, Math.ceil((countdown.endsAt - Date.now()) / 1000));
+      view({
+        kind: 'countdown',
+        title: 'Possible fall detected',
+        html: `Sending your emergency message to your emergency contacts in <strong class="fall-count">${left}</strong> s.`,
+        primary: ['Cancel emergency', () => cancelCountdown(false)],
+      });
+      if (left === 0) escalateFall();
+    };
+    countdown.timer = setInterval(tick, 250);
+    tick();
+    buzz();
+  }
+
+  function stopCountdown() {
+    if (!countdown) return;
+    clearInterval(countdown.timer);
+    countdown = null;
+  }
+
+  function cancelCountdown(fromBand) {
+    if (!countdown) return;
+    stopCountdown();
+    if (!fromBand) ojasBand.command('CANCEL');   // so the band does not send FALL
+    hide();
+    ojasToast(fromBand ? 'Emergency cancelled on the band.' : 'Emergency cancelled.', 'ok');
+  }
+
+  function escalateFall() {
+    stopCountdown();
+    if (Date.now() - lastBand.fall < BAND_REPEAT_MS) return;   // this fall was already sent
+    lastBand.fall = Date.now();
+    dispatch('fall');
+  }
+
+  /* ---------- Entry points ---------- */
+  // Alerts from the band's Alert characteristic.
+  function fromBand(code) {
+    if (code === 'FALL_PENDING') {
+      if (Date.now() - lastBand.fall < BAND_REPEAT_MS) return;
+      startCountdown();
+    } else if (code === 'FALL') {
+      escalateFall();
+    } else if (code === 'SOS') {
+      stopCountdown();                                          // SOS replaces a pending fall
+      if (Date.now() - lastBand.sos < BAND_REPEAT_MS) return;   // repeat of the same SOS
+      lastBand.sos = Date.now();
+      dispatch('sos');
+    } else if (code === 'CANCELLED') {
+      cancelCountdown(true);
+    }
+  }
+
+  // The SOS button in the app.
+  function sosButton() {
+    stopCountdown();
+    dispatch('sos');
+  }
+
+  // A PENDING event already on the server that nobody handled (for example saved while
+  // this page was closed): send it now.
+  function fromServer(event) {
+    if (visibleKind || handled.has(event.id)) return;
+    remember(event.id);
+    dispatch(event.event_type === 'SOS' ? 'sos' : 'fall', { event });
+  }
+
+  return { fromBand, fromServer, sosButton, get active() { return visibleKind; } };
 })();
 
 ojasBand.on('alert', (code) => ojasAlerts.fromBand(code));

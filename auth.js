@@ -87,6 +87,8 @@
   /* ---------- Tabs ---------- */
   const tabs = { signin: [$('tab-signin'), $('signin-form')], signup: [$('tab-signup'), $('signup-form')] };
   function show(mode) {
+    $('forgot-form').hidden = true;
+    $('auth-tabs').hidden = false;
     Object.entries(tabs).forEach(([key, [tab, form]]) => {
       const on = key === mode;
       tab.classList.toggle('is-active', on);
@@ -145,12 +147,48 @@
   });
 
   // Clear a form's error as soon as the person starts fixing it.
-  ['signin-form', 'signup-form', 'connect-form'].forEach((id) => $(id).addEventListener('input', () => {
+  ['signin-form', 'signup-form', 'connect-form', 'forgot-form'].forEach((id) => $(id).addEventListener('input', () => {
     $(id).querySelector('.auth-error').hidden = true;
   }));
 
+  /* ---------- Forgot password ---------- */
+  // Supabase emails a one-time link to reset-password.html, where a new password is set.
+  // The old password is never retrieved or shown.
+  const forgot = $('forgot-form');
   $('forgot-btn').addEventListener('click', () => {
-    fail($('signin-form'), null, 'Password reset is not available in the app yet. Ask the OJAS admin to reset it from Supabase.');
+    const typed = $('signin-form').elements.contact.value.trim();
+    $('signin-form').hidden = true;
+    $('signup-form').hidden = true;
+    $('auth-tabs').hidden = true;
+    forgot.hidden = false;
+    forgot.querySelector('.auth-error').hidden = true;
+    forgot.querySelector('.auth-success').hidden = true;
+    forgot.elements.email.value = validContact(typed) ? typed : '';
+    forgot.elements.email.focus();
+  });
+  $('forgot-back').addEventListener('click', () => show('signin'));
+
+  forgot.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const input = forgot.elements.email;
+    const email = input.value.trim();
+    forgot.querySelector('.auth-success').hidden = true;
+    input.removeAttribute('aria-invalid');
+    if (!validContact(email)) return fail(forgot, input, 'Enter a valid email address.');
+    busy(forgot, true, 'Sending…');
+    try {
+      const { message } = await apiFetch('/api/auth/forgot-password', {
+        method: 'POST',
+        body: { email, redirect_to: new URL('reset-password.html', location.href).href },
+      });
+      const done = forgot.querySelector('.auth-success');
+      done.textContent = message;
+      done.hidden = false;
+      busy(forgot, false, 'Send again');
+    } catch (err) {
+      busy(forgot, false, 'Send reset link');
+      fail(forgot, null, err.message);
+    }
   });
 
   function fail(form, input, message) {

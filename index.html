@@ -60,6 +60,20 @@
       <button type="submit" class="auth-submit">Sign in</button>
     </form>
 
+    <!-- Forgot password -->
+    <form class="card auth-form" id="forgot-form" novalidate hidden>
+      <h2 class="auth-form-title">Reset your password</h2>
+      <p class="auth-note">Enter the email you use for OJAS. We'll email you a link to set a new password.</p>
+      <label class="auth-field">
+        <span>Email</span>
+        <input name="email" type="email" autocomplete="username" required />
+      </label>
+      <p class="auth-error" role="alert" hidden></p>
+      <p class="auth-success" role="status" hidden></p>
+      <button type="submit" class="auth-submit">Send reset link</button>
+      <button type="button" class="auth-link auth-back" id="forgot-back">Back to sign in</button>
+    </form>
+
     <!-- Sign up -->
     <form class="card auth-form" id="signup-form" role="tabpanel" aria-labelledby="tab-signup" novalidate hidden>
       <label class="auth-field">

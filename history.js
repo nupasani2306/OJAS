@@ -29,6 +29,32 @@
     },
   };
 
+  // General reference ranges for adults at rest, shown beside heart rate and SpO2 readings.
+  // tone: 'ok' (within range), 'warn' (outside it), 'alert' (well outside it).
+  const NOTES = {
+    heart: (v) => {
+      if (v < 40) return { tone: 'alert', label: 'Well below typical range', text: 'Well below the typical resting range (60–100 bpm). If you feel dizzy, faint or unwell, seek medical advice.' };
+      if (v < 60) return { tone: 'warn', label: 'Below typical range', text: 'Below the typical resting range (60–100 bpm). This can be normal for athletes and during sleep.' };
+      if (v <= 100) return { tone: 'ok', label: 'Typical resting range', text: 'Within the generally normal resting range (60–100 bpm).' };
+      if (v <= 120) return { tone: 'warn', label: 'Above typical range', text: 'Above the typical resting range (60–100 bpm). This can follow activity, stress, caffeine or fever.' };
+      return { tone: 'alert', label: 'Well above typical range', text: 'Well above the typical resting range (60–100 bpm). If this happens at rest or with symptoms, seek medical advice.' };
+    },
+    spo2: (v) => {
+      if (v >= 95) return { tone: 'ok', label: 'Typical range', text: 'Within the generally normal range (95–100%).' };
+      if (v >= 90) return { tone: 'warn', label: 'Below typical range', text: 'Below the typical range (95–100%). Measure again while still; if it stays low, talk to a doctor.' };
+      return { tone: 'alert', label: 'Low', text: 'Low (below 90%). If it stays low or you feel short of breath, seek medical help promptly.' };
+    },
+  };
+  const DISCLAIMER = 'These notes compare readings with general reference ranges for adults at rest. '
+    + 'They are not a medical diagnosis. Talk to a doctor about your own readings, especially if you have symptoms.';
+
+  function noteEl(note, full) {
+    const el = document.createElement(full ? 'p' : 'small');
+    el.className = `hx-note is-${note.tone}${full ? ' hx-note-latest' : ''}`;
+    el.textContent = full ? note.text : note.label;
+    return el;
+  }
+
   const RANGES = { day: 'Today', week: 'This week', month: 'This month' };
 
   // Returns the history for one metric and range ('day' | 'week' | 'month') in this shape:
@@ -74,8 +100,12 @@
   }
 
   function render(data, failed) {
+    const notes = NOTES[key];
     // Latest value
+    const oldNote = document.querySelector('.hx-note-latest');
+    if (oldNote) oldNote.remove();
     if (data.latest) {
+      if (notes) $('latest-time').after(noteEl(notes(data.latest.value), true));
       $('latest-value').textContent = m.format(data.latest.value);
       $('latest-time').textContent = `Last synced ${new Date(data.latest.time).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}`;
     } else {
@@ -113,10 +143,24 @@
       when.textContent = new Date(r.time).toLocaleString([], { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
       const val = document.createElement('strong');
       val.textContent = withUnit(r.value);
-      li.append(when, val);
+      if (notes) {
+        const right = document.createElement('div');
+        right.className = 'hx-reading-value';
+        right.append(val, noteEl(notes(r.value), false));
+        li.append(when, right);
+      } else {
+        li.append(when, val);
+      }
       list.append(li);
     });
     $('readings-empty').hidden = data.readings.length > 0;
+    if (notes && !$('hx-disclaimer')) {
+      const p = document.createElement('p');
+      p.id = 'hx-disclaimer';
+      p.className = 'hx-disclaimer';
+      p.textContent = DISCLAIMER;
+      $('readings-empty').after(p);
+    }
   }
 
   function summarize(values) {

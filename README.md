@@ -144,3 +144,44 @@ Without it, tap **Connect band** on Home again after moving between pages.
 Each Vitals notification must contain the whole JSON object. If the BLE packet size is too small
 for the JSON, it gets cut off. Android 14+ and desktop Chrome negotiate a large packet size
 automatically; on older phones, test on the laptop or shorten the JSON in the firmware.
+
+---
+
+## 🚨 Emergency alerts (SOS and falls)
+
+| Trigger | What happens |
+|---|---|
+| SOS from the band, or the SOS button in the app | The SOS message is sent straight away to the **SOS contacts** (no confirmation). |
+| `FALL_PENDING` from the band | A 10-second countdown with **Cancel emergency**. Cancel → nothing is sent (the band is told `CANCEL`). |
+| Countdown ends, or `FALL` from the band | The emergency message is sent to the **emergency contacts**. |
+| The same alert repeated | Ignored: each emergency is sent once. |
+
+The Flask backend sends the SMS (`POST /api/emergency/events/<id>/notify`) using **Twilio**.
+Add these to `.env` (never commit them):
+
+```
+TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+TWILIO_AUTH_TOKEN=your-auth-token
+TWILIO_FROM_NUMBER=+1xxxxxxxxxx
+SMS_DEFAULT_COUNTRY_CODE=+91
+```
+
+A Twilio **trial** account only sends to numbers you have verified in the Twilio console.
+Without these settings the app opens the phone's Messages app with the contacts and message
+filled in instead (one tap on Send).
+
+## 🔑 Forgot password
+
+Sign-in page → **Forgot password?** → enter email → Supabase emails a reset link →
+`reset-password.html` → choose a new password. The old password is never retrieved or shown.
+
+One-time Supabase setup (Dashboard → **Authentication → URL Configuration → Redirect URLs**), add:
+
+```
+http://127.0.0.1:5500/reset-password.html
+http://localhost:5500/reset-password.html
+```
+
+Supabase's built-in email service has a low hourly limit and may only deliver to your
+project's team members. For real users, set up your own SMTP under
+**Authentication → Emails → SMTP Settings**.
