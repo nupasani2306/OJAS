@@ -115,7 +115,7 @@ OJAS-Band ──BLE notify──▶ band.js (one connection per page) ──▶ 
 | Service | `6e400001-b5a3-f393-e0a9-e50e24dcca9e` |
 | Vitals (notify, JSON) | `6e400002-b5a3-f393-e0a9-e50e24dcca9e` |
 | Alert (notify: `FALL_PENDING`, `FALL`, `SOS`, `CANCELLED`) | `6e400003-b5a3-f393-e0a9-e50e24dcca9e` |
-| Command (not used by the app yet) | `6e400004-b5a3-f393-e0a9-e50e24dcca9e` |
+| Command (write: `ACK` after FALL/SOS, `CANCEL` from "I'm OK") | `6e400004-b5a3-f393-e0a9-e50e24dcca9e` |
 
 Heart rate / SpO₂ are shown only when the band marks them valid (`hrValid`, `spo2Valid`) and a
 finger is on the sensor (`finger`); otherwise the card shows `--`.

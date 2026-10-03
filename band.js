@@ -32,7 +32,7 @@ const ojasBand = (() => {
     vitalsAt: 0,
   };
   let device = null;
-  let chars = { vitals: null, alert: null };
+  let chars = { vitals: null, alert: null, command: null };
   let opening = null;
   let userDisconnect = false;
   let retryTimer = null;
@@ -135,10 +135,34 @@ const ojasBand = (() => {
     const match = text.match(/FALL_PENDING|CANCEL+ED|FALL|SOS/);
     if (!match) return;
     const code = match[0].startsWith('CANCEL') ? 'CANCELLED' : match[0];
+    // The band re-sends FALL and SOS every few seconds until the app answers ACK.
+    if (code === 'FALL' || code === 'SOS') command('ACK');
     // The same alert repeated (re-sent or re-notified) is one alert, not several.
     if (code === lastAlert.code && Date.now() - lastAlert.at < 30000) return;
     lastAlert = { code, at: Date.now() };
     emit('alert', code);
+  }
+
+  // Commands the band understands: ACK (stop re-sending the last FALL/SOS), CANCEL (cancel a
+  // pending fall), BUZZ, RESETSTEPS. Writes are queued so two never overlap.
+  let commandQueue = Promise.resolve();
+  function command(text) {
+    const ch = chars.command;
+    if (!ch || state.status !== 'connected') return Promise.resolve(false);
+    const bytes = new TextEncoder().encode(text);
+    commandQueue = commandQueue.then(async () => {
+      try {
+        if (ch.writeValueWithoutResponse && ch.properties && ch.properties.writeWithoutResponse) await ch.writeValueWithoutResponse(bytes);
+        else if (ch.writeValueWithResponse) await ch.writeValueWithResponse(bytes);
+        else await ch.writeValue(bytes);
+        console.info('[OJAS band] command sent:', text);
+        return true;
+      } catch (err) {
+        console.warn('[OJAS band] command failed:', text, err.message);
+        return false;
+      }
+    });
+    return commandQueue;
   }
 
   /* ---------- Connection ---------- */
@@ -170,6 +194,7 @@ const ojasBand = (() => {
       const service = await server.getPrimaryService(OJAS_BLE.service);
       const vitals = await subscribe(service, OJAS_BLE.vitals, onVitals, 'vitals');
       await subscribe(service, OJAS_BLE.alert, onAlert, 'alert');
+      try { chars.command = await service.getCharacteristic(OJAS_BLE.command); } catch { chars.command = null; }
       retryCount = 0;
       buffer = '';
       logged = 0;
@@ -378,6 +403,7 @@ const ojasBand = (() => {
     get battery() { return battery.value; },
     unsyncedSteps,
     connect,
+    command,
     autoConnect,
     disconnect,
     flush,
@@ -509,10 +535,12 @@ const ojasAlerts = (() => {
     patch(event, 'SENT');
   }
 
-  async function close(status, message) {
+  async function close(status, message, fromBand = false) {
     const alert = current;
     if (!alert) return;
     hide();
+    // "I'm OK" during the band's countdown: tell the band, so it does not send FALL.
+    if (!fromBand && alert.kind === 'fallPending') ojasBand.command('CANCEL');
     if (message) ojasToast(message, 'ok');
     patch(await eventOf(alert), status);
   }
@@ -530,7 +558,7 @@ const ojasAlerts = (() => {
       if (kind === 'sos') return;
       show('sos', { eventPromise: logEvent('SOS') });
     } else if (code === 'CANCELLED') {
-      if (current) close('CANCELLED', 'Alert cancelled on the band.');
+      if (current && current.kind !== 'sos') close('CANCELLED', 'Alert cancelled on the band.', true);
     }
   }
 
