@@ -98,3 +98,49 @@ The system combines an ESP32-C3 based wearable device with a Flutter mobile appl
           │ PostgreSQL   │    │ Cloud Storage  │
           │   Database   │    │ Medical Docs   │
           └──────────────┘    └────────────────┘
+
+---
+
+## 📡 OJAS Band (live readings over Bluetooth)
+
+The web app connects to the ESP32-C3 band directly with Chrome's Web Bluetooth (`band.js`):
+
+```text
+OJAS-Band ──BLE notify──▶ band.js (one connection per page) ──▶ home cards / fall & SOS dialog
+                                   └──▶ Flask API: readings once a minute, band battery & connection
+```
+
+| BLE | UUID |
+|---|---|
+| Service | `6e400001-b5a3-f393-e0a9-e50e24dcca9e` |
+| Vitals (notify, JSON) | `6e400002-b5a3-f393-e0a9-e50e24dcca9e` |
+| Alert (notify: `FALL_PENDING`, `FALL`, `SOS`, `CANCELLED`) | `6e400003-b5a3-f393-e0a9-e50e24dcca9e` |
+| Command (not used by the app yet) | `6e400004-b5a3-f393-e0a9-e50e24dcca9e` |
+
+Heart rate / SpO₂ are shown only when the band marks them valid (`hrValid`, `spo2Valid`) and a
+finger is on the sensor (`finger`); otherwise the card shows `--`.
+
+### Browser requirements
+- **Chrome or Edge** (Android, Windows, Mac, ChromeOS). Firefox and iPhone browsers have no Web Bluetooth.
+- The page must be opened from `http://localhost` / `http://127.0.0.1` or over `https`.
+  Live Server on the laptop (`http://127.0.0.1:5500`) is fine.
+
+### Test on the laptop
+1. `python app.py` (backend on port 5000) and open `index.html` with Live Server.
+2. Sign in, then on Home tap **Connect band** and choose **OJAS-Band**.
+
+### Test on an Android phone (Chrome)
+1. Phone: enable *Developer options → USB debugging* and connect it to the laptop with USB.
+2. Laptop Chrome: open `chrome://inspect/#devices` → **Port forwarding…** → add
+   `5500 → localhost:5500` and `5000 → localhost:5000`, tick *Enable port forwarding*.
+3. Phone Chrome: open `http://localhost:5500/index.html`, sign in, tap **Connect band**.
+
+### Staying connected when you change pages
+A Bluetooth connection ends when a page is closed. To reconnect automatically on the next page,
+enable `chrome://flags/#enable-web-bluetooth-new-permissions-backend` in Chrome (once).
+Without it, tap **Connect band** on Home again after moving between pages.
+
+### "The band's data is arriving incomplete"
+Each Vitals notification must contain the whole JSON object. If the BLE packet size is too small
+for the JSON, it gets cut off. Android 14+ and desktop Chrome negotiate a large packet size
+automatically; on older phones, test on the laptop or shorten the JSON in the firmware.
