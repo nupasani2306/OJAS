@@ -113,33 +113,9 @@
     });
   }
 
-  /* ---------- SOS button: SOS message → SOS contacts ---------- */
-  // Opens the Messages app with every SOS contact and the SOS message filled in, then logs the alert.
-  const logAlert = async (type, coords) => {
-    try {
-      const { event } = await apiFetch('/api/emergency/events', {
-        method: 'POST',
-        body: { event_type: type, ...(coords ? { latitude: coords.latitude, longitude: coords.longitude } : {}) },
-      });
-      // SENT = handed to the Messages app (the person still taps Send there).
-      await apiFetch(`/api/emergency/events/${event.id}`, { method: 'PATCH', body: { status: 'SENT' } });
-    } catch { /* logging must never block the alert */ }
-  };
-
+  /* ---------- SOS button: SOS message → SOS contacts (band.js ojasAlerts) ---------- */
   const sos = document.querySelector('.sos');
-  let sosBusy = false;
-  if (sos) {
-    sos.addEventListener('click', async () => {
-      if (sosBusy) return;
-      sosBusy = true;
-      try {
-        const sent = await ojasAlert.send('sos');
-        if (sent) logAlert('SOS', sent.coords);
-      } finally {
-        sosBusy = false;
-      }
-    });
-  }
+  if (sos) sos.addEventListener('click', () => ojasAlerts.sosButton());
 
   /* ---------- Fall events saved on the server ---------- */
   // Band alerts arrive over Bluetooth (band.js). This also catches a PENDING fall saved on the

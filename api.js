@@ -221,6 +221,13 @@ const ojasAlert = {
     return `sms:${numbers.join(';')}?body=${text}`;
   },
 
+  // Open the Messages app with these numbers and text (a computer shows the text instead).
+  openMessages(phones, text) {
+    const numbers = phones.map((p) => String(p || '').replace(/[^\d+]/g, '')).filter(Boolean);
+    if (this.isPhone()) location.href = this.smsLink(numbers, text);
+    else alert(`Open OJAS on your phone to send this by SMS.\n\nTo: ${phones.join(', ')}\n\n${text}`);
+  },
+
   // Returns { coords } once the message is handed over, or null (with a toast) when there is nobody to send to.
   async send(kind, coords) {
     const contacts = this.contacts(kind);

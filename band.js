@@ -32,7 +32,7 @@ const ojasBand = (() => {
     vitalsAt: 0,
   };
   let device = null;
-  let chars = { vitals: null, alert: null };
+  let chars = { vitals: null, alert: null, command: null };
   let opening = null;
   let userDisconnect = false;
   let retryTimer = null;
@@ -74,8 +74,17 @@ const ojasBand = (() => {
   // (small BLE packet size), join the pieces until the object is complete.
   let buffer = '';
   let badPackets = 0;
+  // The first packets of each connection are written to the browser console (F12 → Console)
+  // so the band's data can be checked while setting up.
+  let logged = 0;
+  let packetAt = 0;
+  const logPacket = (label, text) => {
+    if (logged < 15) { logged += 1; console.info(`[OJAS band] ${label}:`, text); }
+  };
   function readJson(dataView) {
     const text = decoder.decode(dataView).replace(/\0/g, '').trim();
+    logPacket('vitals packet', JSON.stringify(text));
+    packetAt = Date.now();
     if (!text) return null;
     buffer = text.startsWith('{') ? text : buffer + text;
     if (buffer.length > 2048) buffer = '';
@@ -94,10 +103,22 @@ const ojasBand = (() => {
     }
   }
 
+  let notifiedAt = 0;      // last vitals *notification* (as opposed to a read)
+  let parsedAt = 0;
+  let reading = false;     // a readValue() is in progress (Chrome reports its result as an event too)
+  let handled = 0;
   function onVitals(e) {
+    handled += 1;
+    if (e.type === 'characteristicvaluechanged' && !reading) notifiedAt = Date.now();
     const raw = readJson(e.target.value);
     if (!raw || typeof raw !== 'object') return;
+    if (!['hr', 'spo2', 'steps', 'bat', 'finger'].some((k) => k in raw)) {
+      logPacket('not OJAS vitals (expected hr, spo2, steps, bat, finger)', Object.keys(raw).join(', '));
+      return;
+    }
     const v = parseVitals(raw);
+    parsedAt = v.at;
+    if (logged < 15) logPacket('parsed', JSON.stringify(v));
     state.vitals = v;
     state.vitalsAt = v.at;
     trackSteps(v.steps);
@@ -110,13 +131,39 @@ const ojasBand = (() => {
   let lastAlert = { code: null, at: 0 };
   function onAlert(e) {
     const text = decoder.decode(e.target.value).replace(/\0/g, '').trim().toUpperCase();
+    console.info('[OJAS band] alert:', JSON.stringify(text));
     const match = text.match(/FALL_PENDING|CANCEL+ED|FALL|SOS/);
     if (!match) return;
     const code = match[0].startsWith('CANCEL') ? 'CANCELLED' : match[0];
-    // The same alert repeated (re-sent or re-notified) is one alert, not several.
-    if (code === lastAlert.code && Date.now() - lastAlert.at < 30000) return;
+    // The band re-sends FALL and SOS every few seconds until the app answers ACK.
+    if (code === 'FALL' || code === 'SOS') command('ACK');
+    // The same notification delivered twice in a row is one alert. Repeats of an emergency
+    // (the band re-sends FALL / SOS until ACK) are handled in ojasAlerts.
+    if (code === lastAlert.code && Date.now() - lastAlert.at < 2000) return;
     lastAlert = { code, at: Date.now() };
     emit('alert', code);
+  }
+
+  // Commands the band understands: ACK (stop re-sending the last FALL/SOS), CANCEL (cancel a
+  // pending fall), BUZZ, RESETSTEPS. Writes are queued so two never overlap.
+  let commandQueue = Promise.resolve();
+  function command(text) {
+    const ch = chars.command;
+    if (!ch || state.status !== 'connected') return Promise.resolve(false);
+    const bytes = new TextEncoder().encode(text);
+    commandQueue = commandQueue.then(async () => {
+      try {
+        if (ch.writeValueWithoutResponse && ch.properties && ch.properties.writeWithoutResponse) await ch.writeValueWithoutResponse(bytes);
+        else if (ch.writeValueWithResponse) await ch.writeValueWithResponse(bytes);
+        else await ch.writeValue(bytes);
+        console.info('[OJAS band] command sent:', text);
+        return true;
+      } catch (err) {
+        console.warn('[OJAS band] command failed:', text, err.message);
+        return false;
+      }
+    });
+    return commandQueue;
   }
 
   /* ---------- Connection ---------- */
@@ -148,15 +195,22 @@ const ojasBand = (() => {
       const service = await server.getPrimaryService(OJAS_BLE.service);
       const vitals = await subscribe(service, OJAS_BLE.vitals, onVitals, 'vitals');
       await subscribe(service, OJAS_BLE.alert, onAlert, 'alert');
+      try { chars.command = await service.getCharacteristic(OJAS_BLE.command); } catch { chars.command = null; }
       retryCount = 0;
       buffer = '';
+      logged = 0;
+      packetAt = 0;
+      notifiedAt = 0;
+      parsedAt = 0;
+      const p = vitals.properties || {};
+      console.info('[OJAS band] connected to', device.name, '— vitals characteristic:',
+        { notify: !!p.notify, indicate: !!p.indicate, read: !!p.read });
       setStatus('connected');
       emit('connected', { name: device.name });
       deviceUpdate({ is_connected: true }, true);
       // Show the current values straight away if the band allows reading them.
-      if (vitals.properties && vitals.properties.read) {
-        try { onVitals({ target: { value: await vitals.readValue() } }); } catch { /* wait for the next notification */ }
-      }
+      if (p.read) await readVitals(vitals);
+      watchVitals(vitals);
     })().catch((err) => {
       setStatus('disconnected');
       if (device && !userDisconnect) scheduleReconnect();
@@ -165,7 +219,41 @@ const ojasBand = (() => {
     return opening;
   }
 
+  // If no notifications arrive (for example the band's notify setup is incomplete), read the
+  // characteristic every 2 s instead, as long as the band allows reading it. Also say so once.
+  let pollTimer = null;
+  async function readVitals(vitals) {
+    const before = handled;
+    reading = true;
+    try {
+      const value = await vitals.readValue();
+      if (handled === before) onVitals({ type: 'read', target: { value } });   // no event was fired for it
+    } catch { /* wait for the next notification */ } finally {
+      reading = false;
+    }
+  }
+
+  function watchVitals(vitals) {
+    clearInterval(pollTimer);
+    const started = Date.now();
+    let warned = false;
+    pollTimer = setInterval(async () => {
+      if (state.status !== 'connected') { clearInterval(pollTimer); return; }
+      const quiet = Date.now() - Math.max(notifiedAt, started) > 4000;
+      if (quiet && vitals.properties && vitals.properties.read) {
+        await readVitals(vitals);
+      }
+      if (!warned && Date.now() - started > 10000 && Date.now() - parsedAt > 10000) {
+        warned = true;
+        console.warn('[OJAS band] connected, but no readable vitals received in 10 s.',
+          packetAt ? 'Packets arrive but could not be read (see "vitals packet" above).' : 'No vitals packets arrived.');
+        emit('problem', packetAt ? 'unreadable-data' : 'no-data');
+      }
+    }, 2000);
+  }
+
   function onDisconnected() {
+    clearInterval(pollTimer);
     setStatus('disconnected');
     emit('disconnected');
     flush();
@@ -316,6 +404,7 @@ const ojasBand = (() => {
     get battery() { return battery.value; },
     unsyncedSteps,
     connect,
+    command,
     autoConnect,
     disconnect,
     flush,
@@ -324,11 +413,21 @@ const ojasBand = (() => {
 })();
 
 /* ==========================================================================
-   Fall / SOS dialog: shared by band alerts and fall events found on the server.
-   Uses the existing emergency flow: ojasAlert.send() opens the Messages app for the
-   Emergency (fall) or SOS contacts, and the event is logged on /api/emergency/events.
+   Emergency alerts: SOS and falls, from the band, the SOS button and the server.
+
+   SOS          → the SOS message to the SOS contacts opens straight away (no confirmation).
+   FALL_PENDING → warning with a countdown and "Cancel emergency"; if nobody cancels, the
+                  emergency message goes to the emergency contacts when the countdown ends.
+   FALL         → (the band's own countdown ended) open the emergency message now.
+   CANCELLED    → the fall was cancelled on the band: stop the countdown.
+
+   Sending: the event is saved (/api/emergency/events), the server returns the message and the
+   contacts (/api/emergency/events/<id>/message), and the phone's Messages app opens with them.
    ========================================================================== */
 const ojasAlerts = (() => {
+  const FALL_COUNTDOWN_S = 10;      // same as CANCEL_WINDOW_MS in the band firmware
+  const BAND_REPEAT_MS = 60000;     // the same band alert again within this time is the same emergency
+
   const handled = new Set(JSON.parse(sessionStorage.getItem('ojas.handledAlerts') || '[]'));
   const remember = (id) => {
     if (!id) return;
@@ -336,27 +435,14 @@ const ojasAlerts = (() => {
     sessionStorage.setItem('ojas.handledAlerts', JSON.stringify([...handled].slice(-50)));
   };
 
-  let current = null;   // { kind: 'fallPending' | 'fall' | 'sos', event, eventPromise, coords }
   let modal = null;
+  let actions = {};                 // what the two dialog buttons do right now
+  let visibleKind = null;           // 'countdown' | 'sending' | 'result' | null
+  let countdown = null;             // { endsAt, timer } while a possible fall is being counted down
+  const lastBand = { sos: 0, fall: 0 };
+  const sending = { sos: false, fall: false };
 
-  const TEXT = {
-    fallPending: {
-      title: 'Possible fall detected',
-      text: () => 'Your band detected a possible fall. If you are OK, cancel it on the band or tap "I\'m OK".',
-      send: 'Send emergency message', dismiss: "I'm OK",
-    },
-    fall: {
-      title: 'Fall detected',
-      text: (t) => `Your band detected a fall at <strong>${t}</strong>. Send your emergency message to your emergency contacts?`,
-      send: 'Send emergency message', dismiss: "I'm OK",
-    },
-    sos: {
-      title: 'SOS from your band',
-      text: (t) => `The SOS button on your band was pressed at <strong>${t}</strong>. Send your SOS message to your SOS contacts?`,
-      send: 'Send SOS message', dismiss: 'Cancel',
-    },
-  };
-
+  /* ---------- Dialog ---------- */
   function build() {
     if (modal) return modal;
     modal = document.getElementById('fall-alert');
@@ -372,43 +458,51 @@ const ojasAlerts = (() => {
             <svg viewBox="0 0 24 24"><path d="M12 3 2 21h20Z"/><path d="M12 10v5M12 18h.01"/></svg>
           </span>
           <h2 id="fall-title"></h2>
-          <p id="fall-text"></p>
+          <p id="fall-text" aria-live="polite"></p>
           <button type="button" class="btn-primary fall-send" id="fall-send"></button>
           <button type="button" class="btn-ghost fall-ok" id="fall-ok"></button>
         </section>`;
       document.body.append(modal);
     }
-    modal.querySelector('#fall-send').addEventListener('click', send);
-    modal.querySelector('#fall-ok').addEventListener('click', () => close('CANCELLED'));
+    modal.querySelector('#fall-send').addEventListener('click', () => actions.primary && actions.primary());
+    modal.querySelector('#fall-ok').addEventListener('click', () => actions.secondary && actions.secondary());
     return modal;
   }
 
-  function render() {
+  // view({ kind, title, html, ok, primary: [label, fn], secondary: [label, fn] })
+  function view({ kind, title, html, ok = false, primary = null, secondary = null }) {
     const m = build();
-    const t = TEXT[current.kind];
-    const when = current.event ? new Date(current.event.triggered_at) : new Date();
-    m.querySelector('#fall-title').textContent = t.title;
-    m.querySelector('#fall-text').innerHTML = t.text(when.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }));
-    m.querySelector('#fall-send').textContent = t.send;
-    m.querySelector('#fall-ok').textContent = t.dismiss;
+    visibleKind = kind;
+    m.querySelector('.fall-dialog').classList.toggle('is-ok', ok);
+    m.querySelector('.fall-icon svg').innerHTML = ok
+      ? '<path d="m5 12.5 4.5 4.5L19 7.5"/>'
+      : '<path d="M12 3 2 21h20Z"/><path d="M12 10v5M12 18h.01"/>';
+    m.querySelector('#fall-title').textContent = title;
+    m.querySelector('#fall-text').innerHTML = html;
+    const [p, s] = [m.querySelector('#fall-send'), m.querySelector('#fall-ok')];
+    p.hidden = !primary;
+    s.hidden = !secondary;
+    if (primary) p.textContent = primary[0];
+    if (secondary) s.textContent = secondary[0];
+    actions = { primary: primary && primary[1], secondary: secondary && secondary[1] };
+    const opening = m.hidden;
     m.hidden = false;
     document.body.classList.add('modal-open');
+    if (opening && primary) p.focus();
   }
 
-  function show(kind, { event = null, eventPromise = null, coords } = {}) {
-    current = { kind, event, eventPromise, coords };
-    if (event) remember(event.id);
-    if (eventPromise) {
-      eventPromise.then((ev) => {
-        if (current && current.eventPromise === eventPromise && ev) { current.event = ev; remember(ev.id); }
-      });
-    }
-    render();
-    if (navigator.vibrate) navigator.vibrate([400, 200, 400, 200, 400]);
-    modal.querySelector('#fall-send').focus();
+  function hide() {
+    visibleKind = null;
+    actions = {};
+    if (modal) modal.hidden = true;
+    document.body.classList.remove('modal-open');
   }
 
-  // Log a FALL or SOS event (with the location when the phone can get it).
+  const buzz = () => { if (navigator.vibrate) navigator.vibrate([400, 200, 400, 200, 400]); };
+  const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+  /* ---------- Server ---------- */
+  // Save a FALL or SOS event (with the location when the phone can get it).
   function logEvent(type) {
     return ojasAlert.locate().then((coords) => apiFetch('/api/emergency/events', {
       method: 'POST',
@@ -416,71 +510,163 @@ const ojasAlerts = (() => {
     }).then(({ event }) => { remember(event.id); return event; })).catch(() => null);
   }
 
-  async function eventOf(alert) {
-    if (alert.event) return alert.event;
-    if (alert.eventPromise) return alert.eventPromise;
-    return null;
-  }
-
   function patch(event, status) {
     if (event) apiFetch(`/api/emergency/events/${event.id}`, { method: 'PATCH', body: { status } }).catch(() => {});
   }
 
-  function hide() {
-    current = null;
-    if (modal) modal.hidden = true;
-    document.body.classList.remove('modal-open');
-  }
+  /* ---------- Sending ---------- */
+  // kind: 'sos' (SOS message → SOS contacts) or 'fall' (emergency message → emergency contacts).
+  // The event is saved, the server returns the message text and contacts, and the phone's
+  // Messages app is opened with them straight away (the person taps Send there). If the phone
+  // blocks opening it automatically, the "Open Messages" button does it in one tap.
+  async function dispatch(kind, { event = null } = {}) {
+    if (sending[kind]) return;
+    sending[kind] = true;
+    const sos = kind === 'sos';
+    try {
+      view({ kind: 'sending', title: sos ? 'Preparing SOS…' : 'Preparing emergency message…', html: 'Getting your contacts and location.' });
+      buzz();
+      const ev = event || await logEvent(sos ? 'SOS' : 'FALL');
+      let msg = null;
+      if (ev) {
+        remember(ev.id);
+        try {
+          msg = await apiFetch(`/api/emergency/events/${ev.id}/message`);
+        } catch (err) {
+          if (err.data && err.data.no_contacts) {
+            view({
+              kind: 'result',
+              title: 'No contacts to alert',
+              html: esc(err.message),
+              primary: ['Add contacts', () => { location.href = 'emergency.html'; }],
+              secondary: ['Close', hide],
+            });
+            return;
+          }
+          if (err.status === 409) { hide(); return; }   // cancelled meanwhile
+          // otherwise (offline): use the contacts and message saved on this device
+        }
+      }
 
-  async function send() {
-    const alert = current;
-    if (!alert) return;
-    const kind = alert.kind === 'sos' ? 'sos' : 'emergency';
-    const ev = alert.event;
-    const coords = ev && ev.latitude != null && ev.longitude != null
-      ? { latitude: Number(ev.latitude), longitude: Number(ev.longitude) } : undefined;
-    const sent = await ojasAlert.send(kind, coords);   // opens the Messages app (needs this tap)
-    if (!sent) return;
-    hide();
-    let event = await eventOf(alert);
-    if (!event && alert.kind === 'fallPending') event = await logEvent('FALL');
-    patch(event, 'SENT');
-  }
+      const handedOver = () => {
+        patch(ev, 'SENT');   // SENT = handed to the Messages app
+        view({
+          kind: 'result',
+          ok: true,
+          title: 'Messages opened',
+          html: `Your ${sos ? 'SOS' : 'emergency'} message is ready. Tap <strong>Send</strong> in Messages.`,
+          primary: ['OK', hide],
+          secondary: ['Open Messages again', open],
+        });
+      };
+      async function open() {
+        if (msg) ojasAlert.openMessages(msg.phones, msg.text);
+        else if (!(await ojasAlert.send(sos ? 'sos' : 'emergency'))) return;
+        handedOver();
+      }
 
-  async function close(status, message) {
-    const alert = current;
-    if (!alert) return;
-    hide();
-    if (message) ojasToast(message, 'ok');
-    patch(await eventOf(alert), status);
-  }
+      const who = msg ? msg.names.map(esc).join(', ') : `your ${sos ? 'SOS' : 'emergency'} contacts`;
+      view({
+        kind: 'result',
+        title: sos ? 'Send your SOS' : 'Send your emergency message',
+        html: `Opening Messages with your ${sos ? 'SOS' : 'emergency'} message to <strong>${who}</strong>. `
+          + 'Tap <strong>Send</strong> there. If it did not open, tap the button below.',
+        primary: ['Open Messages', open],
+        secondary: ['Close', hide],
+      });
 
-  // Alerts from the band's Alert characteristic.
-  function fromBand(code) {
-    const kind = current && current.kind;
-    if (code === 'FALL_PENDING') {
-      if (kind === 'fallPending' || kind === 'fall') return;
-      show('fallPending');
-    } else if (code === 'FALL') {
-      if (kind === 'fall') return;
-      show('fall', { eventPromise: logEvent('FALL') });
-    } else if (code === 'SOS') {
-      if (kind === 'sos') return;
-      show('sos', { eventPromise: logEvent('SOS') });
-    } else if (code === 'CANCELLED') {
-      if (current) close('CANCELLED', 'Alert cancelled on the band.');
+      // Open it straight away. If the phone switches to the Messages app, the page is hidden.
+      if (msg && ojasAlert.isPhone()) {
+        const opened = () => { if (document.hidden) { document.removeEventListener('visibilitychange', opened); handedOver(); } };
+        document.addEventListener('visibilitychange', opened);
+        setTimeout(() => document.removeEventListener('visibilitychange', opened), 4000);
+        try { ojasAlert.openMessages(msg.phones, msg.text); } catch { /* the button still works */ }
+      }
+    } finally {
+      sending[kind] = false;
     }
   }
 
-  // A pending fall event already on the server (for example saved while this page was closed).
-  function fromServer(event) {
-    if (current || handled.has(event.id)) return;
-    show(event.event_type === 'SOS' ? 'sos' : 'fall', { event });
+  /* ---------- Fall countdown ---------- */
+  function startCountdown() {
+    if (countdown || sending.fall) return;
+    countdown = { endsAt: Date.now() + FALL_COUNTDOWN_S * 1000 };
+    const tick = () => {
+      if (!countdown) return;
+      const left = Math.max(0, Math.ceil((countdown.endsAt - Date.now()) / 1000));
+      view({
+        kind: 'countdown',
+        title: 'Possible fall detected',
+        html: `Your emergency message to your emergency contacts opens in <strong class="fall-count">${left}</strong> s.`,
+        primary: ['Cancel emergency', () => cancelCountdown(false)],
+      });
+      if (left === 0) escalateFall();
+    };
+    countdown.timer = setInterval(tick, 250);
+    tick();
+    buzz();
   }
 
-  return { fromBand, fromServer, get active() { return current ? current.kind : null; } };
+  function stopCountdown() {
+    if (!countdown) return;
+    clearInterval(countdown.timer);
+    countdown = null;
+  }
+
+  function cancelCountdown(fromBand) {
+    if (!countdown) return;
+    stopCountdown();
+    if (!fromBand) ojasBand.command('CANCEL');   // so the band does not send FALL
+    hide();
+    ojasToast(fromBand ? 'Emergency cancelled on the band.' : 'Emergency cancelled.', 'ok');
+  }
+
+  function escalateFall() {
+    stopCountdown();
+    if (Date.now() - lastBand.fall < BAND_REPEAT_MS) return;   // this fall was already sent
+    lastBand.fall = Date.now();
+    dispatch('fall');
+  }
+
+  /* ---------- Entry points ---------- */
+  // Alerts from the band's Alert characteristic.
+  function fromBand(code) {
+    if (code === 'FALL_PENDING') {
+      if (Date.now() - lastBand.fall < BAND_REPEAT_MS) return;
+      startCountdown();
+    } else if (code === 'FALL') {
+      escalateFall();
+    } else if (code === 'SOS') {
+      stopCountdown();                                          // SOS replaces a pending fall
+      if (Date.now() - lastBand.sos < BAND_REPEAT_MS) return;   // repeat of the same SOS
+      lastBand.sos = Date.now();
+      dispatch('sos');
+    } else if (code === 'CANCELLED') {
+      cancelCountdown(true);
+    }
+  }
+
+  // The SOS button in the app.
+  function sosButton() {
+    stopCountdown();
+    dispatch('sos');
+  }
+
+  // A PENDING event already on the server that nobody handled (for example saved while
+  // this page was closed): send it now.
+  function fromServer(event) {
+    if (visibleKind || handled.has(event.id)) return;
+    remember(event.id);
+    dispatch(event.event_type === 'SOS' ? 'sos' : 'fall', { event });
+  }
+
+  return { fromBand, fromServer, sosButton, get active() { return visibleKind; } };
 })();
 
 ojasBand.on('alert', (code) => ojasAlerts.fromBand(code));
-ojasBand.on('problem', () => ojasToast('The band\'s data is arriving incomplete. See the README "OJAS Band" section.'));
+ojasBand.on('problem', (kind) => ojasToast({
+  'incomplete-data': 'The band\'s data is arriving incomplete. See the README "OJAS Band" section.',
+  'unreadable-data': 'The band is sending data the app cannot read. Press F12 → Console to see it.',
+  'no-data': 'Connected, but the band is not sending readings. Press F12 → Console for details.',
+}[kind]));
 document.addEventListener('DOMContentLoaded', () => { ojasBand.autoConnect(); });

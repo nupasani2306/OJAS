@@ -115,7 +115,7 @@ OJAS-Band ──BLE notify──▶ band.js (one connection per page) ──▶ 
 | Service | `6e400001-b5a3-f393-e0a9-e50e24dcca9e` |
 | Vitals (notify, JSON) | `6e400002-b5a3-f393-e0a9-e50e24dcca9e` |
 | Alert (notify: `FALL_PENDING`, `FALL`, `SOS`, `CANCELLED`) | `6e400003-b5a3-f393-e0a9-e50e24dcca9e` |
-| Command (not used by the app yet) | `6e400004-b5a3-f393-e0a9-e50e24dcca9e` |
+| Command (write: `ACK` after FALL/SOS, `CANCEL` from "I'm OK") | `6e400004-b5a3-f393-e0a9-e50e24dcca9e` |
 
 Heart rate / SpO₂ are shown only when the band marks them valid (`hrValid`, `spo2Valid`) and a
 finger is on the sensor (`finger`); otherwise the card shows `--`.
@@ -144,3 +144,35 @@ Without it, tap **Connect band** on Home again after moving between pages.
 Each Vitals notification must contain the whole JSON object. If the BLE packet size is too small
 for the JSON, it gets cut off. Android 14+ and desktop Chrome negotiate a large packet size
 automatically; on older phones, test on the laptop or shorten the JSON in the firmware.
+
+---
+
+## 🚨 Emergency alerts (SOS and falls)
+
+| Trigger | What happens |
+|---|---|
+| SOS from the band, or the SOS button in the app | The SOS message to the **SOS contacts** opens straight away in the phone's Messages app (no confirmation). |
+| `FALL_PENDING` from the band | A 10-second countdown with **Cancel emergency**. Cancel → nothing is sent (the band is told `CANCEL`). |
+| Countdown ends, or `FALL` from the band | The emergency message to the **emergency contacts** opens in Messages. |
+| The same alert repeated | Ignored: each emergency is handled once. |
+
+The backend builds the message (saved SOS / emergency message, or the default, plus a map link)
+and picks the contacts (`GET /api/emergency/events/<id>/message`). A web page cannot send an SMS
+by itself, so the person taps **Send** in Messages. If the phone blocks opening Messages
+automatically, the alert shows an **Open Messages** button.
+
+## 🔑 Forgot password
+
+Sign-in page → **Forgot password?** → enter email → Supabase emails a reset link →
+`reset-password.html` → choose a new password. The old password is never retrieved or shown.
+
+One-time Supabase setup (Dashboard → **Authentication → URL Configuration → Redirect URLs**), add:
+
+```
+http://127.0.0.1:5500/reset-password.html
+http://localhost:5500/reset-password.html
+```
+
+Supabase's built-in email service has a low hourly limit and may only deliver to your
+project's team members. For real users, set up your own SMTP under
+**Authentication → Emails → SMTP Settings**.

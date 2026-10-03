@@ -1043,3 +1043,25 @@ body[data-metric] .bm-stat strong { font-size: 19px; white-space: nowrap; }
 .fall-dialog p { margin: 6px 0 16px; font-size: 13px; color: var(--muted, #64748b); }
 .fall-dialog .fall-send { display: block; width: 100%; padding: 12px; background: #d6293e; }
 .fall-dialog .fall-ok { display: block; width: 100%; margin-top: 8px; padding: 10px; }
+
+.fall-dialog.is-ok .fall-icon { background: #e3f6ec; }
+.fall-dialog.is-ok .fall-icon svg { stroke: #1f9d5b; }
+.fall-dialog.is-ok h2 { color: #1f9d5b; }
+.fall-dialog.is-ok .fall-send { background: var(--blue); }
+.fall-count { font-size: 18px; color: #d6293e; }
+
+/* ---------- History: reference-range notes ---------- */
+.hx-reading-value { display: grid; justify-items: end; gap: 2px; text-align: right; }
+.hx-note { font-size: 11px; font-weight: 600; }
+.hx-note.is-ok { color: #1f9d5b; }
+.hx-note.is-warn { color: #b7791f; }
+.hx-note.is-alert { color: #c53030; }
+.hx-note-latest { margin-top: 4px; font-size: 12px; font-weight: 500; line-height: 1.4; }
+.hx-disclaimer { margin-top: 10px; padding: 8px 10px; border-radius: 10px; background: #f4f7fb; font-size: 11px; line-height: 1.45; color: var(--muted); }
+
+/* ---------- Forgot / reset password ---------- */
+.auth-form-title { font-size: 17px; color: var(--navy); }
+.auth-note { font-size: 12px; line-height: 1.5; color: var(--muted); margin-top: -6px; }
+.auth-success { font-size: 12px; font-weight: 500; line-height: 1.5; color: #17663f; background: #e3f6ec; padding: 8px 12px; border-radius: 10px; }
+.auth-back { justify-self: center; margin-top: 0; }
+a.auth-submit { display: block; text-align: center; text-decoration: none; }
