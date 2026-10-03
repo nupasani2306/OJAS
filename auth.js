@@ -1,47 +1,49 @@
 // Sign in / sign up page, with an OJAS Band device code that pairs the band right away.
-// signUp(), signIn() and pairDevice() are the backend hooks. Until the backend exists they run in
-// demo mode: the account lives in this browser and passwords are never stored or checked.
+// Accounts, sign-in and band pairing go through the OJAS backend (api.js must load first).
 (function () {
-  const store = {
-    get(key, fallback) {
-      try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; }
-    },
-    set(key, value) {
-      try { localStorage.setItem(key, JSON.stringify(value)); return true; } catch { return false; }
-    },
-  };
+  const store = ojasStore;
   const $ = (id) => document.getElementById(id);
-  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
-  // ---- Backend hooks ---------------------------------------------------------------------
-  // Replace each body with a call to your API, e.g.
-  //   const res = await fetch('/api/auth/signup', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-  //                                                 body: JSON.stringify({ name, contact, password }) });
-  //   if (!res.ok) throw new Error((await res.json()).message);
-  //   return await res.json();   // { user: { name, contact }, token }
-  // Throw an Error with a readable message to show it under the form.
-
-  async function signUp({ name, contact }) {
-    await wait(400);
-    const account = { name, contact: contact.toLowerCase(), createdAt: Date.now() };
-    store.set('ojas.account', account);
-    return { user: { name, contact: account.contact } };
+  // ---- Backend calls ---------------------------------------------------------------------
+  async function signIn({ contact, password }) {
+    const data = await apiFetch('/api/auth/login', { method: 'POST', body: { email: contact, password } });
+    clearTokens();                    // forget any previous account on this device
+    saveTokens(data);
+    let name = (data.user && data.user.full_name) || contact.split('@')[0];
+    try {
+      const { profile } = await apiFetch('/api/profile');
+      if (profile && profile.full_name) name = profile.full_name;
+    } catch { /* profile not readable yet */ }
+    await loadDevice();
+    return { user: { name, contact } };
   }
 
-  async function signIn({ contact }) {
-    await wait(400);
-    const account = store.get('ojas.account', null);
-    if (!account || account.contact !== contact.toLowerCase()) {
-      throw new Error('No account found with that email or phone. Check it, or sign up.');
+  async function signUp({ name, contact, password }) {
+    const data = await apiFetch('/api/auth/signup', { method: 'POST', body: { email: contact, password, full_name: name } });
+    if (!data.access_token) {
+      // "Confirm email" is switched on in Supabase: the account exists but can't sign in yet.
+      throw new Error(data.message || 'Check your email to confirm your account, then sign in.');
     }
-    return { user: { name: account.name, contact: account.contact } };
+    clearTokens();
+    saveTokens(data);
+    return { user: { name, contact } };
   }
 
-  // Backend: look the code up (devices table), check it is not paired to someone else,
-  // link it to this user and return the band's details.
+  // Cache the user's paired band (the home page shows its status).
+  async function loadDevice() {
+    try {
+      const { devices } = await apiFetch('/api/devices');
+      if (devices.length) store.set('ojas.device', toBand(devices[0]));
+    } catch { /* shown as "Not connected" */ }
+  }
+
+  function toBand(d) {
+    return { id: d.id, code: d.device_uid.replace(/^OJAS-/, ''), name: d.device_name, pairedAt: Date.parse(d.paired_at) };
+  }
+
   async function pairDevice(code) {
-    await wait(1600);
-    return { code, name: 'OJAS Band', pairedAt: Date.now() };
+    const { device } = await apiFetch('/api/devices/pair', { method: 'POST', body: { code } });
+    return toBand(device);
   }
   // -----------------------------------------------------------------------------------------
 
@@ -79,7 +81,7 @@
   const params = new URLSearchParams(location.search);
   const next = /^[a-z0-9-]+\.html([?#].*)?$/i.test(params.get('next') || '') && !/^index\.html/i.test(params.get('next'))
     ? params.get('next') : 'home.html';
-  const session = store.get('ojas.session', null);
+  const session = getToken() ? store.get('ojas.session', null) : null;
   const device = store.get('ojas.device', null);
 
   /* ---------- Tabs ---------- */
@@ -108,6 +110,13 @@
     $('signin-form').hidden = true;
     $('connect-form').hidden = false;
     $('auth-tagline').textContent = `Hi ${session.name.split(' ')[0]}, let's pair your band.`;
+    let pairError = null;
+    try { pairError = sessionStorage.getItem('ojas.pairError'); sessionStorage.removeItem('ojas.pairError'); } catch { /* ignore */ }
+    if (pairError) {
+      const box = $('connect-form').querySelector('.auth-error');
+      box.textContent = `Your account was created, but the band could not be connected: ${pairError}`;
+      box.hidden = false;
+    }
   } else if (session) {
     location.replace(next);
     return;
@@ -141,7 +150,7 @@
   }));
 
   $('forgot-btn').addEventListener('click', () => {
-    fail($('signin-form'), null, 'Password reset will work once the OJAS backend is connected.');
+    fail($('signin-form'), null, 'Password reset is not available in the app yet. Ask the OJAS admin to reset it from Supabase.');
   });
 
   function fail(form, input, message) {
@@ -157,13 +166,13 @@
     btn.disabled = on;
     if (label) btn.textContent = label;
   }
-  const validContact = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) || /^\+?[\d\s()-]{6,20}$/.test(v) && (v.match(/\d/g) || []).length >= 6;
+  const validContact = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);   // the backend uses email accounts
 
   // A new account names the profile; signing in only fills the name if the profile has none.
-  function startSession(user, isNewAccount) {
+  function startSession(user) {
     store.set('ojas.session', { name: user.name, contact: user.contact, signedInAt: Date.now() });
     const profile = store.get('ojas.profile', null) || {};
-    if (isNewAccount || !profile.name) store.set('ojas.profile', { ...profile, name: user.name });
+    store.set('ojas.profile', { ...profile, name: user.name });
   }
 
   async function pairAndGo(code, goTo) {
@@ -196,14 +205,14 @@
     e.preventDefault();
     const form = e.currentTarget;
     const { contact, password, addDevice, deviceCode } = form.elements;
-    if (!validContact(contact.value.trim())) return fail(form, contact, 'Enter a valid email or phone number.');
+    if (!validContact(contact.value.trim())) return fail(form, contact, 'Enter a valid email address.');
     if (!password.value) return fail(form, password, 'Enter your password.');
     if (addDevice.checked) { const err = codeError(deviceCode.value); if (err) return fail(form, deviceCode, err); }
     form.querySelector('.auth-error').hidden = true;
     busy(form, true, 'Signing in…');
     try {
       const { user } = await signIn({ contact: contact.value.trim(), password: password.value });
-      startSession(user, false);
+      startSession(user);
       if (addDevice.checked) {
         const result = await pairAndGo(formatCode(deviceCode.value), next);
         if (result !== true) { busy(form, false, 'Sign in'); return fail(form, deviceCode, result.message || 'Could not connect the band.'); }
@@ -222,7 +231,7 @@
     const form = e.currentTarget;
     const { name, contact, password, confirm, later, deviceCode } = form.elements;
     if (!name.value.trim()) return fail(form, name, 'Enter your name.');
-    if (!validContact(contact.value.trim())) return fail(form, contact, 'Enter a valid email or phone number.');
+    if (!validContact(contact.value.trim())) return fail(form, contact, 'Enter a valid email address.');
     if (password.value.length < 8) return fail(form, password, 'Use at least 8 characters for your password.');
     if (confirm.value !== password.value) return fail(form, confirm, 'The passwords don’t match.');
     if (!later.checked) { const err = codeError(deviceCode.value); if (err) return fail(form, deviceCode, `${err} Or tick “I'll connect my band later”.`); }
@@ -230,11 +239,12 @@
     busy(form, true, 'Creating account…');
     try {
       const { user } = await signUp({ name: name.value.trim(), contact: contact.value.trim(), password: password.value });
-      startSession(user, true);
+      startSession(user);
       if (later.checked) { location.replace(next); return; }
       const result = await pairAndGo(formatCode(deviceCode.value), next);
       if (result !== true) {
         // Account exists now; send them to connect the band from the connect step.
+        try { sessionStorage.setItem('ojas.pairError', result.message || 'unknown error'); } catch { /* ignore */ }
         location.replace('index.html?mode=connect');
       }
     } catch (err) {

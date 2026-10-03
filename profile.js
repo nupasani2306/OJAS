@@ -1,13 +1,7 @@
-// Profile page: personal info, profile photo and document list, remembered in this browser.
+// Profile page: personal info, profile photo and documents, stored in the OJAS backend.
+// The last loaded values are cached in the browser so the page (and the Medical ID QR) show instantly.
 (function () {
-  const store = {
-    get(key, fallback) {
-      try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; }
-    },
-    set(key, value) {
-      try { localStorage.setItem(key, JSON.stringify(value)); return true; } catch { return false; }
-    },
-  };
+  const store = ojasStore;
 
   /* ---------- Personal info ---------- */
   const FIELDS = [
@@ -15,7 +9,7 @@
     ['blood', 'Blood group', (v) => v],
     ['height', 'Height', (v) => `${v} cm`],
     ['weight', 'Weight', (v) => `${v} kg`],
-    ['emergency', 'Emergency contact', (v) => v],
+    ['phone', 'Phone', (v) => v],
   ];
 
   const list = document.getElementById('info-list');
@@ -24,17 +18,16 @@
   const editBtn = document.getElementById('edit-info');
   const formActions = document.getElementById('profile-form-actions');
   const infoCard = document.getElementById('info-card');
-  let info = store.get('ojas.profile', { name: 'Neha' });
+  let info = store.get('ojas.profile', { name: '' });
 
   function renderInfo() {
     nameEl.textContent = info.name || 'Your name';
     list.innerHTML = '';
-    let filled = 0;
     FIELDS.forEach(([key, label, format]) => {
       const dt = document.createElement('dt');
       const dd = document.createElement('dd');
       dt.textContent = label;
-      if (info[key]) { dd.textContent = format(info[key]); filled++; }
+      if (info[key]) dd.textContent = format(info[key]);
       else { dd.textContent = 'Not added'; dd.className = 'empty'; }
       list.append(dt, dd);
     });
@@ -53,13 +46,40 @@
 
   editBtn.addEventListener('click', () => openForm(true));
   document.getElementById('cancel-info').addEventListener('click', () => openForm(false));
-  form.addEventListener('submit', (e) => {
+
+  let saving = false;
+  form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    info = Object.fromEntries(new FormData(form).entries());
-    Object.keys(info).forEach((k) => { info[k] = String(info[k]).trim(); });
-    store.set('ojas.profile', info);
-    renderInfo();
-    openForm(false);
+    if (saving) return;
+    const values = Object.fromEntries(new FormData(form).entries());
+    Object.keys(values).forEach((k) => { values[k] = String(values[k]).trim(); });
+    if (!values.name) { ojasToast('Please enter your name.'); form.elements.name.focus(); return; }
+
+    saving = true;
+    try {
+      const [{ profile }, { medical_info: medical }] = await Promise.all([
+        apiFetch('/api/profile', {
+          method: 'PUT',
+          body: {
+            full_name: values.name,
+            date_of_birth: values.dob || null,
+            height_cm: values.height ? Number(values.height) : null,
+            weight_kg: values.weight ? Number(values.weight) : null,
+            phone: values.phone || null,
+          },
+        }),
+        apiFetch('/api/medical', { method: 'PUT', body: { blood_group: values.blood || null } }),
+      ]);
+      ojasSync.profileToCache({ ...profile, photo_url: store.get('ojas.photo') }, medical);
+      info = store.get('ojas.profile');
+      renderInfo();
+      openForm(false);
+      ojasToast('Profile saved', 'ok');
+    } catch (err) {
+      ojasToast(err.message);
+    } finally {
+      saving = false;
+    }
   });
 
   /* ---------- Profile photo ---------- */
@@ -73,8 +93,8 @@
     photoEmpty.hidden = !!src;
   }
 
-  // Shrink the picture so it fits comfortably in browser storage.
-  function resize(file, size = 320) {
+  // Shrink the picture before uploading (a profile photo never needs more than 480 px).
+  function resize(file, size = 480) {
     return new Promise((resolve, reject) => {
       const img = new Image();
       img.onload = () => {
@@ -84,7 +104,7 @@
         canvas.height = Math.round(img.height * scale);
         canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
         URL.revokeObjectURL(img.src);
-        resolve(canvas.toDataURL('image/jpeg', 0.85));
+        canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('resize failed'))), 'image/jpeg', 0.85);
       };
       img.onerror = reject;
       img.src = URL.createObjectURL(file);
@@ -93,15 +113,27 @@
 
   photoInput.addEventListener('change', async () => {
     const file = photoInput.files[0];
-    if (!file) return;
-    try {
-      const src = await resize(file);
-      showPhoto(src);
-      store.set('ojas.photo', src);
-    } catch {
-      alert('That image could not be opened. Please try another one.');
-    }
     photoInput.value = '';
+    if (!file) return;
+    let blob;
+    try {
+      blob = await resize(file);
+    } catch {
+      ojasToast('That image could not be opened. Please try another one.');
+      return;
+    }
+    const previous = store.get('ojas.photo', null);
+    showPhoto(URL.createObjectURL(blob));   // show it straight away
+    try {
+      const formData = new FormData();
+      formData.append('file', blob, 'profile.jpg');
+      const { photo_url: url } = await apiFetch('/api/profile/photo', { method: 'POST', body: formData });
+      store.set('ojas.photo', url);
+      ojasToast('Photo updated', 'ok');
+    } catch (err) {
+      showPhoto(previous);
+      ojasToast(err.message);
+    }
   });
 
   /* ---------- Documents ---------- */
@@ -111,40 +143,53 @@
   const allDocList = document.getElementById('all-doc-list');
   const allDocEmpty = document.getElementById('all-doc-empty');
   const docsModal = document.getElementById('docs-modal');
-  let docs = store.get('ojas.documents', []);
-  const openable = new Map(); // files picked in this visit can be opened again
+  let docs = [];
 
-  const formatSize = (bytes) =>
-    bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  async function openDocument(doc) {
+    // Open the tab first (browsers block pop-ups opened after an await), then point it at the signed link.
+    const tab = window.open('', '_blank');
+    try {
+      const { url } = await apiFetch(`/api/documents/${doc.id}/url`);
+      if (tab) tab.location = url; else location.href = url;
+    } catch (err) {
+      if (tab) tab.close();
+      ojasToast(err.message);
+    }
+  }
 
   function createDocRow(doc) {
-      const li = document.createElement('li');
+    const li = document.createElement('li');
 
-      const icon = document.createElement('span');
-      icon.className = 'doc-icon';
-      icon.textContent = (doc.name.split('.').pop() || 'file').slice(0, 4).toUpperCase();
+    const icon = document.createElement('span');
+    icon.className = 'doc-icon';
+    icon.textContent = (doc.document_name.split('.').pop() || 'file').slice(0, 4).toUpperCase();
 
-      const text = document.createElement('div');
-      text.className = 'doc-text';
-      const name = document.createElement(openable.has(doc.id) ? 'a' : 'strong');
-      name.textContent = doc.name;
-      if (openable.has(doc.id)) { name.href = openable.get(doc.id); name.target = '_blank'; name.rel = 'noopener'; }
-      text.append(name);
+    const text = document.createElement('div');
+    text.className = 'doc-text';
+    const name = document.createElement('a');
+    name.href = '#';
+    name.textContent = doc.document_name;
+    name.addEventListener('click', (e) => { e.preventDefault(); openDocument(doc); });
+    text.append(name);
 
-      const remove = document.createElement('button');
-      remove.className = 'doc-remove';
-      remove.type = 'button';
-      remove.setAttribute('aria-label', `Remove ${doc.name}`);
-      remove.innerHTML = '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg>';
-      remove.addEventListener('click', () => {
+    const remove = document.createElement('button');
+    remove.className = 'doc-remove';
+    remove.type = 'button';
+    remove.setAttribute('aria-label', `Remove ${doc.document_name}`);
+    remove.innerHTML = '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg>';
+    remove.addEventListener('click', async () => {
+      if (!confirm(`Delete "${doc.document_name}"?`)) return;
+      try {
+        await apiFetch(`/api/documents/${doc.id}`, { method: 'DELETE' });
         docs = docs.filter((d) => d.id !== doc.id);
-        if (openable.has(doc.id)) { URL.revokeObjectURL(openable.get(doc.id)); openable.delete(doc.id); }
-        store.set('ojas.documents', docs);
         renderDocs();
-      });
+      } catch (err) {
+        ojasToast(err.message);
+      }
+    });
 
-      li.append(icon, text, remove);
-      return li;
+    li.append(icon, text, remove);
+    return li;
   }
 
   function renderDocs() {
@@ -165,18 +210,35 @@
   document.getElementById('close-docs').addEventListener('click', () => setDocsModal(false));
   document.getElementById('close-docs-backdrop').addEventListener('click', () => setDocsModal(false));
 
-  docInput.addEventListener('change', () => {
-    Array.from(docInput.files).forEach((file) => {
-      const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-      docs.unshift({ id, name: file.name, size: file.size, added: Date.now() });
-      openable.set(id, URL.createObjectURL(file));
-    });
-    store.set('ojas.documents', docs);
-    renderDocs();
+  docInput.addEventListener('change', async () => {
+    const files = Array.from(docInput.files);
     docInput.value = '';
+    for (const file of files) {
+      const formData = new FormData();
+      formData.append('file', file);
+      try {
+        const { document } = await apiFetch('/api/documents/upload', { method: 'POST', body: formData });
+        docs.unshift(document);
+        renderDocs();
+      } catch (err) {
+        ojasToast(`${file.name}: ${err.message}`);
+      }
+    }
   });
 
+  /* ---------- Load ---------- */
   renderInfo();
   showPhoto(store.get('ojas.photo', null));
   renderDocs();
+
+  ojasSync.profile().then(() => {
+    info = store.get('ojas.profile');
+    renderInfo();
+    showPhoto(store.get('ojas.photo', null));
+  }).catch((err) => ojasToast(err.message));
+
+  apiFetch('/api/documents').then(({ documents }) => {
+    docs = documents;
+    renderDocs();
+  }).catch((err) => ojasToast(err.message));
 })();

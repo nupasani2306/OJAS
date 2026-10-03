@@ -1,10 +1,10 @@
 // Loaded in the <head> of every app page (not medical-card.html, which anyone who scans the QR may open).
 // Sends signed-out visitors to the sign-in page, then fills in the user's name, the band status
-// and the sign-out button. With a backend, check the session token with the server here too.
+// and the sign-out button. The token itself is checked by the server on every API call (api.js).
 (function () {
   const read = (key) => { try { return JSON.parse(localStorage.getItem(key)); } catch { return null; } };
   const session = read('ojas.session');
-  if (!session) {
+  if (!session || !read('ojas.token')) {
     const here = location.pathname.split('/').pop() || 'home.html';
     location.replace(`index.html?next=${encodeURIComponent(here + location.search + location.hash)}`);
     return;
@@ -29,8 +29,8 @@
 
     document.querySelectorAll('[data-sign-out]').forEach((btn) => btn.addEventListener('click', () => {
       if (!confirm('Sign out of OJAS on this device?')) return;
-      try { localStorage.removeItem('ojas.session'); } catch { /* storage blocked */ }
-      location.replace('index.html');
+      const done = () => { clearTokens(); location.replace('index.html'); };
+      apiFetch('/api/auth/logout', { method: 'POST' }).then(done, done);   // revoke this session on the server
     }));
   });
 })();

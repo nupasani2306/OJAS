@@ -1,240 +1,79 @@
-from flask import Blueprint, request, jsonify
-from config import supabase
+import re
 
-devices_bp = Blueprint(
-    "devices",
-    __name__,
-    url_prefix="/api/devices"
-)
+from flask import Blueprint, g
+
+from routes.common import body, db_error_code, error, ok, require_auth
+
+devices_bp = Blueprint("devices", __name__, url_prefix="/api/devices")
+
+# Device codes are printed on the band: OJAS-XXXX-XXXX, letters/digits without 0, O, 1 or I.
+CODE_RE = re.compile(r"^[A-HJ-NP-Z2-9]{8}$")
+UPDATE_FIELDS = ["device_name", "battery_level", "is_connected", "firmware_version", "last_seen_at"]
 
 
-def get_current_user():
-
-    auth_header = request.headers.get("Authorization")
-
-    if not auth_header or not auth_header.startswith("Bearer "):
-        return None
-
-    access_token = auth_header.split(" ", 1)[1]
-
-    try:
-        response = supabase.auth.get_user(access_token)
-        return response.user
-
-    except Exception:
-        return None
+def normalize_code(raw):
+    code = re.sub(r"[^A-Z0-9]", "", (raw or "").upper())
+    if code.startswith("OJAS"):
+        code = code[4:]
+    return code
 
 
 @devices_bp.route("", methods=["GET"])
+@require_auth
 def get_devices():
-
-    user = get_current_user()
-
-    if not user:
-        return jsonify({
-            "status": "error",
-            "message": "Invalid or missing authentication token"
-        }), 401
-
-    try:
-
-        response = (
-            supabase
-            .table("devices")
-            .select("*")
-            .eq("user_id", user.id)
-            .order("created_at", desc=True)
-            .execute()
-        )
-
-        return jsonify({
-            "status": "success",
-            "devices": response.data
-        }), 200
-
-    except Exception as e:
-
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+    response = (g.db.table("devices").select("*").eq("user_id", g.user.id)
+                .order("paired_at", desc=True).execute())
+    return ok(devices=response.data)
 
 
 @devices_bp.route("/pair", methods=["POST"])
+@require_auth
 def pair_device():
+    data = body()
+    code = normalize_code(data.get("code") or data.get("device_uid"))
+    if not CODE_RE.match(code):
+        return error("Enter the 8-character device code from your band (no 0, O, 1 or I)")
+    device_uid = f"OJAS-{code[:4]}-{code[4:]}"
 
-    user = get_current_user()
-
-    if not user:
-        return jsonify({
-            "status": "error",
-            "message": "Invalid or missing authentication token"
-        }), 401
+    # Already paired to this user? Return it.
+    mine = g.db.table("devices").select("*").eq("device_uid", device_uid).eq("user_id", g.user.id).execute()
+    if mine.data:
+        return ok(message="This band is already connected to your account", device=mine.data[0])
 
     try:
-
-        data = request.get_json()
-
-        if not data:
-            return jsonify({
-                "status": "error",
-                "message": "No device data provided"
-            }), 400
-
-        device_id = data.get("device_id")
-        device_name = data.get("device_name", "OJAS Band")
-
-        if not device_id:
-            return jsonify({
-                "status": "error",
-                "message": "device_id is required"
-            }), 400
-
-        existing = (
-            supabase
-            .table("devices")
-            .select("*")
-            .eq("device_id", device_id)
-            .execute()
-        )
-
-        if existing.data:
-
-            response = (
-                supabase
-                .table("devices")
-                .update({
-                    "user_id": user.id,
-                    "device_name": device_name,
-                    "is_active": True
-                })
-                .eq("device_id", device_id)
-                .execute()
-            )
-
-        else:
-
-            device_data = {
-                "user_id": user.id,
-                "device_id": device_id,
-                "device_name": device_name,
-                "is_active": True
-            }
-
-            response = (
-                supabase
-                .table("devices")
-                .insert(device_data)
-                .execute()
-            )
-
-        return jsonify({
-            "status": "success",
-            "message": "OJAS device paired successfully",
-            "device": response.data
-        }), 200
-
-    except Exception as e:
-
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+        response = g.db.table("devices").insert({
+            "user_id": g.user.id,
+            "device_uid": device_uid,
+            "device_name": data.get("device_name") or "OJAS Band",
+            "is_connected": True,
+        }).execute()
+    except Exception as exc:
+        if db_error_code(exc) == "23505":   # device_uid is unique: another account has it
+            return error("This band is already paired with another account. Unpair it there first.", 409)
+        raise
+    return ok(201, message="OJAS Band paired successfully", device=response.data[0])
 
 
 @devices_bp.route("/<device_id>", methods=["PUT"])
+@require_auth
 def update_device(device_id):
-
-    user = get_current_user()
-
-    if not user:
-        return jsonify({
-            "status": "error",
-            "message": "Invalid or missing authentication token"
-        }), 401
-
-    try:
-
-        data = request.get_json()
-
-        if not data:
-            return jsonify({
-                "status": "error",
-                "message": "No device data provided"
-            }), 400
-
-        allowed_fields = [
-            "device_name",
-            "is_active"
-        ]
-
-        update_data = {}
-
-        for field in allowed_fields:
-            if field in data:
-                update_data[field] = data[field]
-
-        if not update_data:
-            return jsonify({
-                "status": "error",
-                "message": "No valid device fields provided"
-            }), 400
-
-        response = (
-            supabase
-            .table("devices")
-            .update(update_data)
-            .eq("device_id", device_id)
-            .eq("user_id", user.id)
-            .execute()
-        )
-
-        return jsonify({
-            "status": "success",
-            "message": "Device updated successfully",
-            "device": response.data
-        }), 200
-
-    except Exception as e:
-
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+    data = body()
+    update = {f: data[f] for f in UPDATE_FIELDS if f in data}
+    if not update:
+        return error("No valid device fields provided")
+    level = update.get("battery_level")
+    if level is not None and not (isinstance(level, int) and 0 <= level <= 100):
+        return error("battery_level must be a whole number from 0 to 100")
+    response = g.db.table("devices").update(update).eq("id", device_id).eq("user_id", g.user.id).execute()
+    if not response.data:
+        return error("Device not found", 404)
+    return ok(message="Device updated successfully", device=response.data[0])
 
 
 @devices_bp.route("/<device_id>", methods=["DELETE"])
+@require_auth
 def unpair_device(device_id):
-
-    user = get_current_user()
-
-    if not user:
-        return jsonify({
-            "status": "error",
-            "message": "Invalid or missing authentication token"
-        }), 401
-
-    try:
-
-        (
-            supabase
-            .table("devices")
-            .update({
-                "is_active": False
-            })
-            .eq("device_id", device_id)
-            .eq("user_id", user.id)
-            .execute()
-        )
-
-        return jsonify({
-            "status": "success",
-            "message": "OJAS device unpaired successfully"
-        }), 200
-
-    except Exception as e:
-
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+    response = g.db.table("devices").delete().eq("id", device_id).eq("user_id", g.user.id).execute()
+    if not response.data:
+        return error("Device not found", 404)
+    return ok(message="OJAS Band unpaired")

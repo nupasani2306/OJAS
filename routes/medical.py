@@ -1,143 +1,31 @@
-from flask import Blueprint, request, jsonify
-from config import supabase
+from flask import Blueprint, g
 
-medical_bp = Blueprint(
-    "medical",
-    __name__,
-    url_prefix="/api/medical"
-)
+from routes.common import body, error, ok, require_auth
 
+medical_bp = Blueprint("medical", __name__, url_prefix="/api/medical")
 
-def get_current_user():
-
-    auth_header = request.headers.get("Authorization")
-
-    if not auth_header or not auth_header.startswith("Bearer "):
-        return None
-
-    access_token = auth_header.split(" ", 1)[1]
-
-    try:
-        response = supabase.auth.get_user(access_token)
-        return response.user
-
-    except Exception:
-        return None
+MEDICAL_FIELDS = ["blood_group", "allergies", "medical_conditions", "medications", "emergency_notes"]
+BLOOD_GROUPS = {"A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"}
 
 
 @medical_bp.route("", methods=["GET"])
+@require_auth
 def get_medical_info():
-
-    user = get_current_user()
-
-    if not user:
-        return jsonify({
-            "status": "error",
-            "message": "Invalid or missing authentication token"
-        }), 401
-
-    try:
-
-        response = (
-            supabase
-            .table("medical_info")
-            .select("*")
-            .eq("user_id", user.id)
-            .single()
-            .execute()
-        )
-
-        return jsonify({
-            "status": "success",
-            "medical_info": response.data
-        }), 200
-
-    except Exception as e:
-
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+    response = g.db.table("medical_info").select("*").eq("user_id", g.user.id).maybe_single().execute()
+    return ok(medical_info=(response.data if response else None))
 
 
 @medical_bp.route("", methods=["PUT"])
+@require_auth
 def update_medical_info():
+    data = body()
+    update = {field: data[field] for field in MEDICAL_FIELDS if field in data}
+    if not update:
+        return error("No valid medical fields provided")
+    update = {k: (None if v == "" else v) for k, v in update.items()}
+    if update.get("blood_group") and update["blood_group"] not in BLOOD_GROUPS:
+        return error("Blood group must be one of " + ", ".join(sorted(BLOOD_GROUPS)))
 
-    user = get_current_user()
-
-    if not user:
-        return jsonify({
-            "status": "error",
-            "message": "Invalid or missing authentication token"
-        }), 401
-
-    try:
-
-        data = request.get_json()
-
-        if not data:
-            return jsonify({
-                "status": "error",
-                "message": "No medical information provided"
-            }), 400
-
-        allowed_fields = [
-            "allergies",
-            "medical_conditions",
-            "medications",
-            "notes"
-        ]
-
-        medical_data = {}
-
-        for field in allowed_fields:
-            if field in data:
-                medical_data[field] = data[field]
-
-        if not medical_data:
-            return jsonify({
-                "status": "error",
-                "message": "No valid medical fields provided"
-            }), 400
-
-        existing = (
-            supabase
-            .table("medical_info")
-            .select("user_id")
-            .eq("user_id", user.id)
-            .execute()
-        )
-
-        if existing.data:
-
-            response = (
-                supabase
-                .table("medical_info")
-                .update(medical_data)
-                .eq("user_id", user.id)
-                .execute()
-            )
-
-        else:
-
-            medical_data["user_id"] = user.id
-
-            response = (
-                supabase
-                .table("medical_info")
-                .insert(medical_data)
-                .execute()
-            )
-
-        return jsonify({
-            "status": "success",
-            "message": "Medical information saved successfully",
-            "medical_info": response.data
-        }), 200
-
-    except Exception as e:
-
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+    update["user_id"] = g.user.id
+    response = g.db.table("medical_info").upsert(update, on_conflict="user_id").execute()
+    return ok(message="Medical information saved successfully", medical_info=response.data[0] if response.data else None)

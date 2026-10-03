@@ -1,166 +1,69 @@
-from flask import Blueprint, request, jsonify
-from config import supabase
+from datetime import datetime
 
-sleep_bp = Blueprint(
-    "sleep",
-    __name__,
-    url_prefix="/api/sleep"
-)
+from flask import Blueprint, g
+
+from routes.common import body, error, ok, require_auth
+
+sleep_bp = Blueprint("sleep", __name__, url_prefix="/api/sleep")
+
+QUALITIES = {"POOR", "FAIR", "GOOD", "EXCELLENT"}
+SOURCES = {"band", "app", "manual", "backend"}
 
 
-def get_current_user():
-
-    auth_header = request.headers.get("Authorization")
-
-    if not auth_header or not auth_header.startswith("Bearer "):
-        return None
-
-    access_token = auth_header.split(" ", 1)[1]
-
-    try:
-        response = supabase.auth.get_user(access_token)
-        return response.user
-
-    except Exception:
-        return None
+def parse(ts):
+    return datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
 
 
 @sleep_bp.route("", methods=["GET"])
+@require_auth
 def get_sleep_sessions():
-
-    user = get_current_user()
-
-    if not user:
-        return jsonify({
-            "status": "error",
-            "message": "Invalid or missing authentication token"
-        }), 401
-
-    try:
-
-        response = (
-            supabase
-            .table("sleep_sessions")
-            .select("*")
-            .eq("user_id", user.id)
-            .order("start_time", desc=True)
-            .execute()
-        )
-
-        return jsonify({
-            "status": "success",
-            "sleep_sessions": response.data
-        }), 200
-
-    except Exception as e:
-
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+    response = (g.db.table("sleep_sessions").select("*").eq("user_id", g.user.id)
+                .order("start_time", desc=True).limit(100).execute())
+    return ok(sleep_sessions=response.data)
 
 
 @sleep_bp.route("", methods=["POST"])
+@require_auth
 def add_sleep_session():
-
-    user = get_current_user()
-
-    if not user:
-        return jsonify({
-            "status": "error",
-            "message": "Invalid or missing authentication token"
-        }), 401
-
+    data = body()
+    start_time, end_time = data.get("start_time"), data.get("end_time")
+    if not start_time or not end_time:
+        return error("start_time and end_time are required")
     try:
+        start, end = parse(start_time), parse(end_time)
+    except ValueError:
+        return error("start_time and end_time must be ISO dates, e.g. 2026-10-02T23:15:00+05:30")
+    if end <= start:
+        return error("end_time must be after start_time")
 
-        data = request.get_json()
+    session = {
+        "user_id": g.user.id,
+        "start_time": start.isoformat(),
+        "end_time": end.isoformat(),
+        "duration_minutes": int(data.get("duration_minutes") or round((end - start).total_seconds() / 60)),
+        "source": data.get("source", "app"),
+    }
+    if session["source"] not in SOURCES:
+        return error("source must be one of " + ", ".join(sorted(SOURCES)))
+    quality = data.get("sleep_quality") or data.get("quality")
+    if quality:
+        if quality.upper() not in QUALITIES:
+            return error("sleep_quality must be one of " + ", ".join(sorted(QUALITIES)))
+        session["sleep_quality"] = quality.upper()
+    if data.get("sleep_score") is not None:
+        session["sleep_score"] = data["sleep_score"]
+    if data.get("device_id"):
+        session["device_id"] = data["device_id"]
 
-        if not data:
-            return jsonify({
-                "status": "error",
-                "message": "No sleep data provided"
-            }), 400
-
-        start_time = data.get("start_time")
-        end_time = data.get("end_time")
-        duration_minutes = data.get("duration_minutes")
-        quality = data.get("quality")
-        source = data.get("source", "app")
-        device_id = data.get("device_id")
-
-        if not start_time or not end_time:
-            return jsonify({
-                "status": "error",
-                "message": "start_time and end_time are required"
-            }), 400
-
-        sleep_data = {
-            "user_id": user.id,
-            "start_time": start_time,
-            "end_time": end_time,
-            "source": source
-        }
-
-        if duration_minutes is not None:
-            sleep_data["duration_minutes"] = duration_minutes
-
-        if quality is not None:
-            sleep_data["quality"] = quality
-
-        if device_id:
-            sleep_data["device_id"] = device_id
-
-        response = (
-            supabase
-            .table("sleep_sessions")
-            .insert(sleep_data)
-            .execute()
-        )
-
-        return jsonify({
-            "status": "success",
-            "message": "Sleep session saved successfully",
-            "sleep_session": response.data
-        }), 201
-
-    except Exception as e:
-
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+    response = g.db.table("sleep_sessions").insert(session).execute()
+    return ok(201, message="Sleep session saved successfully", sleep_session=response.data[0])
 
 
 @sleep_bp.route("/<session_id>", methods=["DELETE"])
+@require_auth
 def delete_sleep_session(session_id):
-
-    user = get_current_user()
-
-    if not user:
-        return jsonify({
-            "status": "error",
-            "message": "Invalid or missing authentication token"
-        }), 401
-
-    try:
-
-        (
-            supabase
-            .table("sleep_sessions")
-            .delete()
-            .eq("id", session_id)
-            .eq("user_id", user.id)
-            .execute()
-        )
-
-        return jsonify({
-            "status": "success",
-            "message": "Sleep session deleted successfully"
-        }), 200
-
-    except Exception as e:
-
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+    response = g.db.table("sleep_sessions").delete().eq("id", session_id).eq("user_id", g.user.id).execute()
+    if not response.data:
+        # Also returned until the delete policy from the 2026-10-03 migration is applied.
+        return error("Sleep session not found (or the latest database migration is not applied yet)", 404)
+    return ok(message="Sleep session deleted successfully")

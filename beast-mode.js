@@ -1,14 +1,8 @@
 // Beast Mode: workout tracker. Live workout timer, rest timer, exercises and sets,
-// weekly goal, streak, weekly chart, personal records and history, remembered in this browser.
+// weekly goal, streak, weekly chart, personal records and history. Finished workouts are saved in the
+// OJAS backend; the workout in progress stays on this device so a reload never loses it.
 (function () {
-  const store = {
-    get(key, fallback) {
-      try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; }
-    },
-    set(key, value) {
-      try { localStorage.setItem(key, JSON.stringify(value)); return true; } catch { return false; }
-    },
-  };
+  const store = ojasStore;
 
   const $ = (id) => document.getElementById(id);
   function h(tag, props = {}, ...children) {
@@ -44,6 +38,69 @@
   const saveHistory = () => store.set('ojas.workouts', history);
   const saveActive = () => store.set('ojas.activeWorkout', active);
   const uid = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+  /* ---------- Server sync ---------- */
+  // Server workout -> the shape this page uses.
+  function fromServer(w) {
+    return {
+      id: w.id,
+      type: w.workout_type,
+      name: w.workout_name || `${w.workout_type} workout`,
+      start: Date.parse(w.started_at || w.created_at),
+      duration: (w.duration_minutes || 0) * 60000,
+      kcal: Math.round(Number(w.calories_burned) || 0),
+      distance: w.distance_km != null ? Number(w.distance_km) : null,
+      exercises: (w.exercises || []).map((ex) => ({
+        name: ex.exercise_name,
+        sets: (ex.sets || []).map((st) => ({
+          kg: st.weight_kg != null ? String(Number(st.weight_kg)) : '', reps: st.reps != null ? String(st.reps) : '', done: !!st.completed,
+        })),
+      })),
+    };
+  }
+
+  function toServer(w) {
+    return {
+      workout_type: w.type,
+      workout_name: w.name,
+      started_at: new Date(w.start).toISOString(),
+      ended_at: new Date(w.start + w.duration).toISOString(),
+      duration_minutes: Math.max(1, Math.round(w.duration / 60000)),
+      calories_burned: w.kcal,
+      distance_km: w.distance,
+      status: 'COMPLETED',
+      exercises: w.exercises.map((ex) => ({
+        exercise_name: ex.name,
+        sets: ex.sets.map((st) => ({ weight_kg: +st.kg || null, reps: +st.reps || null, completed: !!st.done })),
+      })),
+    };
+  }
+
+  // Upload a finished workout; if it fails it stays on this device (marked unsynced) and is retried later.
+  async function upload(w) {
+    try {
+      const { workout } = await apiFetch('/api/workouts', { method: 'POST', body: toServer(w) });
+      history = history.map((x) => (x.id === w.id ? fromServer(workout) : x));
+      saveHistory();
+      renderAll();
+      return true;
+    } catch (err) {
+      w.unsynced = true;
+      saveHistory();
+      ojasToast(`Workout kept on this device: ${err.message}`);
+      return false;
+    }
+  }
+
+  async function syncFromServer() {
+    const pending = history.filter((w) => w.unsynced);
+    for (const w of pending) await upload(w);
+    const { workouts } = await apiFetch('/api/workouts');
+    const stillPending = history.filter((w) => w.unsynced);
+    history = [...stillPending, ...workouts.map(fromServer)].sort((a, b) => b.start - a.start);
+    saveHistory();
+    renderAll();
+  }
 
   /* ---------- Dates ---------- */
   const dayKey = (t) => { const d = new Date(t); return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`; };
@@ -106,10 +163,15 @@
     $('stat-kcal').textContent = fmtNum(week.reduce((a, w) => a + w.kcal, 0));
   }
 
+  let goalSaveTimer;
   function changeGoal(delta) {
     goal = Math.min(14, Math.max(1, goal + delta));
     store.set('ojas.workoutGoal', goal);
     renderSummary();
+    clearTimeout(goalSaveTimer);   // save once the person stops tapping
+    goalSaveTimer = setTimeout(() => {
+      ojasSync.saveSettings({ weekly_workout_goal: goal }).catch(() => { /* kept on this device */ });
+    }, 800);
   }
   $('goal-minus').addEventListener('click', () => changeGoal(-1));
   $('goal-plus').addEventListener('click', () => changeGoal(1));
@@ -209,8 +271,16 @@
         w.distance ? h('p', {}, h('strong', {}, 'Distance'), ` — ${w.distance} km`) : null,
         h('button', {
           type: 'button', class: 'bm-delete',
-          onclick: () => {
+          onclick: async () => {
             if (!confirm(`Delete "${w.name}" from your history?`)) return;
+            if (!w.unsynced) {
+              try {
+                await apiFetch(`/api/workouts/${w.id}`, { method: 'DELETE' });
+              } catch (err) {
+                ojasToast(err.message);
+                return;
+              }
+            }
             history = history.filter((x) => x.id !== w.id);
             saveHistory();
             renderAll();
@@ -376,13 +446,16 @@
     const exercises = active.exercises
       .map((ex) => ({ name: ex.name, sets: ex.sets.filter((s) => s.done || +s.kg || +s.reps) }))
       .filter((ex) => ex.sets.length);
-    history.unshift({
+    const finished = {
       id: active.id, type: active.type, name: active.name, start: active.start, duration,
       kcal: kcalFor(active.type, duration),
       distance: parseFloat(active.distance) > 0 ? Math.round(parseFloat(active.distance) * 100) / 100 : null,
       exercises,
-    });
+      unsynced: true,
+    };
+    history.unshift(finished);
     saveHistory();
+    upload(finished);
     active = null;
     saveActive();
     stopRest();
@@ -433,4 +506,8 @@
     renderActive();
   }
   renderAll();
+  syncFromServer().catch((err) => ojasToast(err.message));
+  ojasSync.settings().then(({ settings, migrated }) => {
+    if (migrated && settings.weekly_workout_goal !== goal) { goal = settings.weekly_workout_goal; renderSummary(); }
+  }).catch(() => { /* keep the goal saved on this device */ });
 })();

@@ -1017,6 +1017,17 @@ body[data-metric] .bm-stat strong { font-size: 19px; white-space: nowrap; }
 }
 .sign-out-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
+/* ---------- Toast (api.js) ---------- */
+.ojas-toast {
+  position: fixed; left: 50%; bottom: 24px; z-index: 50; max-width: min(92vw, 360px);
+  transform: translate(-50%, 20px); opacity: 0; pointer-events: none;
+  padding: 10px 16px; border-radius: 14px; font-size: 13px; font-weight: 500; line-height: 1.4;
+  color: #fff; background: var(--navy); box-shadow: 0 10px 24px rgba(27, 42, 74, .25);
+  transition: opacity .2s ease, transform .2s ease;
+}
+.ojas-toast.is-error { background: #b4233f; }
+.ojas-toast.is-shown { opacity: 1; transform: translate(-50%, 0); }
+
 /* ---------- Small screens: fill the viewport ---------- */
 @media (max-width: 420px) {
   body { padding: 0; background: #f4f8fb; }

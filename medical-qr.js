@@ -23,7 +23,7 @@
     const med = store.get('ojas.medical', {}) || {};
     const data = { v: 1, u: Date.now() };
     const put = (k, v) => { if (v && String(v).trim()) data[k] = String(v).trim(); };
-    put('n', p.name || 'Neha');
+    put('n', p.name || (store.get('ojas.session', {}) || {}).name || 'OJAS user');
     put('a', p.age); put('b', p.blood); put('h', p.height); put('w', p.weight);
     put('al', med.allergies); put('c', med.conditions); put('m', med.medications); put('no', med.notes);
 
@@ -112,12 +112,17 @@
     store.set('ojas.medical', med);
     editing(false);
     render();
+    apiFetch('/api/medical', {
+      method: 'PUT',
+      body: { allergies: med.allergies, medical_conditions: med.conditions, medications: med.medications, emergency_notes: med.notes },
+    }).then(() => ojasToast('Medical info saved', 'ok')).catch((err) => ojasToast(err.message));
   });
 
   includeContacts.checked = store.get('ojas.qrContacts', true) !== false;
   includeContacts.addEventListener('change', () => {
     store.set('ojas.qrContacts', includeContacts.checked);
     render();
+    ojasSync.saveSettings({ qr_include_contacts: includeContacts.checked }).catch(() => { /* kept on this device */ });
   });
 
   $('qr-share').addEventListener('click', async () => {

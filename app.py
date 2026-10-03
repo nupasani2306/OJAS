@@ -1,7 +1,9 @@
+import os
+
 from flask import Flask, jsonify
 from flask_cors import CORS
 
-from config import supabase
+from config import SUPABASE_KEY, SUPABASE_URL
 
 # --------------------------------------------------
 # ROUTES
@@ -17,6 +19,7 @@ from routes.health import health_bp
 from routes.sleep import sleep_bp
 from routes.workouts import workouts_bp
 from routes.chat import chat_bp
+from routes.settings import settings_bp
 
 
 # ==================================================
@@ -24,6 +27,7 @@ from routes.chat import chat_bp
 # ==================================================
 
 app = Flask(__name__)
+app.config["MAX_CONTENT_LENGTH"] = 11 * 1024 * 1024   # uploads up to ~10 MB
 
 # Allow Flutter / frontend to communicate with Flask
 CORS(app)
@@ -43,6 +47,7 @@ app.register_blueprint(health_bp)
 app.register_blueprint(sleep_bp)
 app.register_blueprint(workouts_bp)
 app.register_blueprint(chat_bp)
+app.register_blueprint(settings_bp)
 
 
 # ==================================================
@@ -79,29 +84,34 @@ def backend_health():
 
 @app.route("/api/test-supabase")
 def test_supabase():
+    """Checks that Flask can reach Supabase. (Table data needs a signed-in user, because of RLS.)"""
+    import httpx
 
     try:
-
-        response = (
-            supabase
-            .table("user_profiles")
-            .select("*")
-            .limit(1)
-            .execute()
-        )
-
-        return jsonify({
-            "status": "success",
-            "message": "Flask connected to Supabase successfully!",
-            "data": response.data
-        })
-
+        response = httpx.get(f"{SUPABASE_URL}/auth/v1/health", headers={"apikey": SUPABASE_KEY}, timeout=10)
+        response.raise_for_status()
+        return jsonify({"status": "success", "message": "Flask connected to Supabase successfully!"})
     except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+
+# ==================================================
+# JSON ERRORS (instead of HTML error pages)
+# ==================================================
+
+@app.errorhandler(404)
+def not_found(_):
+    return jsonify({"status": "error", "message": "Not found"}), 404
+
+
+@app.errorhandler(405)
+def method_not_allowed(_):
+    return jsonify({"status": "error", "message": "Method not allowed"}), 405
+
+
+@app.errorhandler(413)
+def too_large(_):
+    return jsonify({"status": "error", "message": "The file is too large"}), 413
 
 
 # ==================================================
@@ -112,6 +122,6 @@ if __name__ == "__main__":
 
     app.run(
         host="127.0.0.1",
-        port=5000,
-        debug=True
+        port=int(os.getenv("PORT", 5000)),
+        debug=os.getenv("FLASK_DEBUG", "1") == "1"
     )
