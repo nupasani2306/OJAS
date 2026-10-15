@@ -13,6 +13,7 @@
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, normalize, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { buildSync } from 'esbuild';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = join(ROOT, 'www');
@@ -40,6 +41,14 @@ for (const file of [...files].sort()) {
   cpSync(from, join(OUT, file));
 }
 
+// Native Bluetooth for the Android app: bundle @capacitor-community/bluetooth-le into one file that
+// the plain <script> pages can load (window.OjasNativeBle). In a browser it is never loaded.
+buildSync({
+  entryPoints: [join(ROOT, 'scripts', 'native-ble-entry.mjs')],
+  outfile: join(OUT, 'vendor', 'capacitor-ble.js'),
+  bundle: true, format: 'iife', platform: 'browser', target: 'es2019', minify: true, legalComments: 'none', logLevel: 'error',
+});
+
 // www/config.js: runtime settings, loaded before the other scripts on every page.
 const api = (process.env.OJAS_API_BASE || '').trim().replace(/\/+$/, '');
 const web = (process.env.OJAS_WEB_BASE || '').trim().replace(/\/+$/, '');
@@ -57,10 +66,12 @@ for (const page of pages) {
   const html = readFileSync(target, 'utf8');
   const at = html.indexOf('<script');
   if (at === -1) continue;
-  writeFileSync(target, `${html.slice(0, at)}<script src="config.js"></script>\n  ${html.slice(at)}`);
+  let out = `${html.slice(0, at)}<script src="config.js"></script>\n  ${html.slice(at)}`;
+  out = out.replace('<script src="ble-adapter.js"></script>', '<script src="vendor/capacitor-ble.js"></script>\n  <script src="ble-adapter.js"></script>');
+  writeFileSync(target, out);
 }
 
-console.log(`www/ built: ${files.size} files (${pages.length} pages) + config.js`);
+console.log(`www/ built: ${files.size} files (${pages.length} pages) + config.js + vendor/capacitor-ble.js`);
 console.log(`  OJAS_API_BASE = ${api || '(not set)'}`);
 console.log(`  OJAS_WEB_BASE = ${web || '(not set)'}`);
 if (!api) {

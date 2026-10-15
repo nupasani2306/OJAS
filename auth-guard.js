@@ -15,9 +15,10 @@
     if (first) document.querySelectorAll('[data-user-name]').forEach((el) => { el.textContent = first; });
 
     // Home device card: real pairing state instead of a fixed "Connected".
-    // Where the browser has Bluetooth, band.js / home-data.js run the card (live connection) instead.
+    // Where Bluetooth is available (Chrome, or the Android app), band.js / home-data.js run the card instead.
     const status = document.getElementById('device-status');
-    const bluetooth = !!(navigator.bluetooth && window.isSecureContext);
+    const nativeApp = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+    const bluetooth = nativeApp || !!(navigator.bluetooth && window.isSecureContext);
     if (status && !bluetooth && !read('ojas.device')) {
       status.classList.add('is-off');
       status.lastChild.textContent = 'Not connected';
