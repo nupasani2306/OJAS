@@ -179,7 +179,7 @@
     try {
       const { message } = await apiFetch('/api/auth/forgot-password', {
         method: 'POST',
-        body: { email, redirect_to: new URL('reset-password.html', location.href).href },
+        body: { email, redirect_to: ojasWebUrl('reset-password.html') },
       });
       const done = forgot.querySelector('.auth-success');
       done.textContent = message;
