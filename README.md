@@ -176,3 +176,14 @@ http://localhost:5500/reset-password.html
 Supabase's built-in email service has a low hourly limit and may only deliver to your
 project's team members. For real users, set up your own SMTP under
 **Authentication → Emails → SMTP Settings**.
+
+---
+
+## 📱 Android app
+
+The same app is packaged for Android with Capacitor (native Bluetooth to the OJAS Band).
+Build steps, permissions and the test checklist: [ANDROID.md](ANDROID.md).
+
+## 🌐 Online deployment
+
+Backend and website on Render (free): [DEPLOY.md](DEPLOY.md).

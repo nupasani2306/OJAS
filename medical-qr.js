@@ -46,7 +46,7 @@
   }
 
   function cardUrl(data) {
-    return `${new URL('medical-card.html', location.href).href}#d=${encode(data)}`;
+    return `${ojasWebUrl('medical-card.html')}#d=${encode(data)}`;
   }
 
   function render() {
@@ -78,7 +78,8 @@
         chips.append(chip);
       });
 
-    const local = location.protocol === 'file:' || ['localhost', '127.0.0.1', ''].includes(location.hostname);
+    const local = !window.OJAS_WEB_BASE
+      && (location.protocol === 'file:' || ['localhost', '127.0.0.1', ''].includes(location.hostname));
     $('qr-host-note').hidden = !local;
     return url;
   }

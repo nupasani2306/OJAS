@@ -1,4 +1,6 @@
-// OJAS Band over Bluetooth (Web Bluetooth, Chrome/Edge). Load after api.js on every app page.
+// OJAS Band over Bluetooth. Load after api.js and ble-adapter.js on every app page.
+// The Bluetooth transport comes from ble-adapter.js: Web Bluetooth in Chrome/Edge, the native
+// Bluetooth plugin in the Android app. Everything below the transport is the same on both.
 //
 //   ESP32-C3 band ──BLE notify──▶ ojasBand (this file) ──events──▶ page UI (home-data.js)
 //                                      │                     └──▶ ojasAlerts (fall / SOS dialog)
@@ -20,7 +22,8 @@ const ojasBand = (() => {
   const emit = (type, detail) => events.dispatchEvent(new CustomEvent(type, { detail }));
   const decoder = new TextDecoder();
 
-  const supported = !!(navigator.bluetooth && window.isSecureContext);
+  const ble = ojasBleAdapter;      // transport (ble-adapter.js)
+  const supported = ble.supported;
   const STALE_MS = 10000;          // no vitals for this long → treat live values as unknown
   const UPLOAD_MS = 60000;         // save readings to the server once a minute
   const BATTERY_UPLOAD_MS = 120000;
@@ -31,8 +34,9 @@ const ojasBand = (() => {
     vitals: null,                  // last parsed packet (see parseVitals)
     vitalsAt: 0,
   };
-  let device = null;
-  let chars = { vitals: null, alert: null, command: null };
+  let device = null;               // transport handle of the band
+  let vitalsProps = {};            // properties of the Vitals characteristic (read / notify)
+  let hasCommand = false;
   let opening = null;
   let userDisconnect = false;
   let retryTimer = null;
@@ -148,14 +152,12 @@ const ojasBand = (() => {
   // pending fall), BUZZ, RESETSTEPS. Writes are queued so two never overlap.
   let commandQueue = Promise.resolve();
   function command(text) {
-    const ch = chars.command;
-    if (!ch || state.status !== 'connected') return Promise.resolve(false);
+    if (!hasCommand || !device || state.status !== 'connected') return Promise.resolve(false);
     const bytes = new TextEncoder().encode(text);
+    const target = device;
     commandQueue = commandQueue.then(async () => {
       try {
-        if (ch.writeValueWithoutResponse && ch.properties && ch.properties.writeWithoutResponse) await ch.writeValueWithoutResponse(bytes);
-        else if (ch.writeValueWithResponse) await ch.writeValueWithResponse(bytes);
-        else await ch.writeValue(bytes);
+        await ble.write(target, OJAS_BLE.service, OJAS_BLE.command, bytes);
         console.info('[OJAS band] command sent:', text);
         return true;
       } catch (err) {
@@ -167,51 +169,49 @@ const ojasBand = (() => {
   }
 
   /* ---------- Connection ---------- */
-  function attach(d) {
-    if (device === d) return;
-    if (device) device.removeEventListener('gattserverdisconnected', onDisconnected);
-    device = d;
-    device.addEventListener('gattserverdisconnected', onDisconnected);
-  }
-
-  async function subscribe(service, uuid, handler, key) {
-    const ch = await service.getCharacteristic(uuid);
-    if (chars[key]) chars[key].removeEventListener('characteristicvaluechanged', chars[key]._ojasHandler);
-    ch.removeEventListener('characteristicvaluechanged', handler);
-    ch.addEventListener('characteristicvaluechanged', handler);
-    ch._ojasHandler = handler;
-    chars[key] = ch;
-    await ch.startNotifications();
-    return ch;
-  }
+  // Values from the transport, in the shape onVitals / onAlert already expect.
+  const onVitalsValue = (value) => onVitals({ type: 'characteristicvaluechanged', target: { value } });
+  const onAlertValue = (value) => onAlert({ target: { value } });
 
   function open() {
     if (opening) return opening;
     clearTimeout(retryTimer);
     userDisconnect = false;
     setStatus('connecting');
+    const target = device;
     opening = (async () => {
-      const server = await device.gatt.connect();
-      const service = await server.getPrimaryService(OJAS_BLE.service);
-      const vitals = await subscribe(service, OJAS_BLE.vitals, onVitals, 'vitals');
-      await subscribe(service, OJAS_BLE.alert, onAlert, 'alert');
-      try { chars.command = await service.getCharacteristic(OJAS_BLE.command); } catch { chars.command = null; }
+      await ble.connect(target, () => onDisconnected(target));
+      const chars = await ble.characteristics(target, OJAS_BLE.service, [OJAS_BLE.vitals, OJAS_BLE.alert, OJAS_BLE.command]);
+      if (!chars[OJAS_BLE.vitals] || !chars[OJAS_BLE.alert]) {
+        const e = new Error('This device does not have the OJAS Band characteristics. Choose "OJAS-Band".');
+        e.code = 'WRONG_DEVICE';
+        throw e;
+      }
+      await ble.subscribe(target, OJAS_BLE.service, OJAS_BLE.vitals, onVitalsValue);
+      await ble.subscribe(target, OJAS_BLE.service, OJAS_BLE.alert, onAlertValue);
+      hasCommand = !!chars[OJAS_BLE.command];
+      vitalsProps = chars[OJAS_BLE.vitals];
       retryCount = 0;
       buffer = '';
       logged = 0;
       packetAt = 0;
       notifiedAt = 0;
       parsedAt = 0;
-      const p = vitals.properties || {};
-      console.info('[OJAS band] connected to', device.name, '— vitals characteristic:',
-        { notify: !!p.notify, indicate: !!p.indicate, read: !!p.read });
+      console.info(`[OJAS band] connected to ${ble.name(target)} (${ble.platform}) — vitals characteristic:`,
+        { notify: vitalsProps.notify, indicate: vitalsProps.indicate, read: vitalsProps.read });
       setStatus('connected');
-      emit('connected', { name: device.name });
+      emit('connected', { name: ble.name(target) });
       deviceUpdate({ is_connected: true }, true);
       // Show the current values straight away if the band allows reading them.
-      if (p.read) await readVitals(vitals);
-      watchVitals(vitals);
-    })().catch((err) => {
+      if (vitalsProps.read) await readVitals();
+      watchVitals();
+    })().catch(async (err) => {
+      console.warn('[OJAS band] connection failed:', err && err.message);
+      try { await ble.cleanup(target); } catch { /* nothing to clean */ }
+      if (err && err.code === 'WRONG_DEVICE') {      // not an OJAS Band: leave it, do not keep retrying
+        ble.disconnect(target).catch(() => {});
+        if (device === target) device = null;
+      }
       setStatus('disconnected');
       if (device && !userDisconnect) scheduleReconnect();
       throw err;
@@ -222,26 +222,26 @@ const ojasBand = (() => {
   // If no notifications arrive (for example the band's notify setup is incomplete), read the
   // characteristic every 2 s instead, as long as the band allows reading it. Also say so once.
   let pollTimer = null;
-  async function readVitals(vitals) {
+  async function readVitals() {
     const before = handled;
     reading = true;
     try {
-      const value = await vitals.readValue();
+      const value = await ble.read(device, OJAS_BLE.service, OJAS_BLE.vitals);
       if (handled === before) onVitals({ type: 'read', target: { value } });   // no event was fired for it
     } catch { /* wait for the next notification */ } finally {
       reading = false;
     }
   }
 
-  function watchVitals(vitals) {
+  function watchVitals() {
     clearInterval(pollTimer);
     const started = Date.now();
     let warned = false;
     pollTimer = setInterval(async () => {
       if (state.status !== 'connected') { clearInterval(pollTimer); return; }
       const quiet = Date.now() - Math.max(notifiedAt, started) > 4000;
-      if (quiet && vitals.properties && vitals.properties.read) {
-        await readVitals(vitals);
+      if (quiet && vitalsProps.read) {
+        await readVitals();
       }
       if (!warned && Date.now() - started > 10000 && Date.now() - parsedAt > 10000) {
         warned = true;
@@ -252,8 +252,10 @@ const ojasBand = (() => {
     }, 2000);
   }
 
-  function onDisconnected() {
+  function onDisconnected(target) {
+    if (target !== device) return;                 // a band we already left
     clearInterval(pollTimer);
+    ble.cleanup(target).catch(() => {});
     setStatus('disconnected');
     emit('disconnected');
     flush();
@@ -271,30 +273,27 @@ const ojasBand = (() => {
     }, delay);
   }
 
-  // Must be called from a tap/click: Chrome shows its device picker.
+  // Must be called from a tap/click: shows the device picker (Chrome's, or Android's in the app).
   async function connect() {
-    if (!supported) {
-      throw new Error(navigator.bluetooth
-        ? 'Bluetooth needs a secure page: open OJAS at http://localhost or over https.'
-        : 'This browser cannot use Bluetooth. Use Chrome (Android, Windows, Mac or ChromeOS).');
+    if (!supported) throw new Error(ble.unsupportedReason);
+    const picked = await ble.requestDevice(OJAS_BLE.service);
+    if (device && device !== picked) {
+      const old = device;
+      device = null;
+      ble.disconnect(old).catch(() => {});
     }
-    const picked = await navigator.bluetooth.requestDevice({
-      filters: [{ name: OJAS_BLE.name }, { namePrefix: 'OJAS' }],
-      optionalServices: [OJAS_BLE.service],
-    });
-    attach(picked);
+    device = picked;
     return open();
   }
 
-  // Reconnect to a band this site was already allowed to use, without the picker
-  // (works where Chrome supports navigator.bluetooth.getDevices()).
+  // Reconnect to a band chosen before, without the picker (Chrome: needs getDevices();
+  // Android app: the band saved on this phone).
   async function autoConnect() {
-    if (!supported || !navigator.bluetooth.getDevices) return false;
+    if (!supported) return false;
     try {
-      const known = await navigator.bluetooth.getDevices();
-      const band = known.find((d) => d.name === OJAS_BLE.name) || known.find((d) => (d.name || '').startsWith('OJAS'));
+      const band = await ble.knownDevice();
       if (!band) return false;
-      attach(band);
+      device = band;
       open().catch(() => { /* retried automatically */ });
       return true;
     } catch {
@@ -305,8 +304,10 @@ const ojasBand = (() => {
   function disconnect() {
     userDisconnect = true;
     clearTimeout(retryTimer);
-    if (device && device.gatt.connected) device.gatt.disconnect();
-    else setStatus('disconnected');
+    clearInterval(pollTimer);
+    const target = device;
+    if (target) ble.disconnect(target).catch(() => {});
+    setStatus('disconnected');
   }
 
   /* ---------- Saving to the server ---------- */
@@ -390,7 +391,11 @@ const ojasBand = (() => {
 
   if (supported) {
     setInterval(() => flush(), UPLOAD_MS);
-    window.addEventListener('pagehide', () => flush(true));
+    window.addEventListener('pagehide', () => {
+      flush(true);
+      // Android app: stop the plugin's notifications for this page; the next page subscribes again.
+      if (device && ble.platform === 'android') ble.cleanup(device).catch(() => {});
+    });
   }
 
   return {

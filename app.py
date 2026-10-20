@@ -120,8 +120,14 @@ def too_large(_):
 
 if __name__ == "__main__":
 
+    # 127.0.0.1 = this computer only. Set FLASK_HOST=0.0.0.0 so a phone on the same Wi-Fi
+    # (the Android app) can reach it at http://<this computer's IP>:5000.
+    host = os.getenv("FLASK_HOST", "127.0.0.1")
+    # Debug mode (interactive debugger) only while reachable from this computer alone,
+    # unless FLASK_DEBUG is set explicitly.
+    local_only = host in ("127.0.0.1", "localhost", "::1")
     app.run(
-        host="127.0.0.1",
+        host=host,
         port=int(os.getenv("PORT", 5000)),
-        debug=os.getenv("FLASK_DEBUG", "1") == "1"
+        debug=os.getenv("FLASK_DEBUG", "1" if local_only else "0") == "1"
     )

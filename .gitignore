@@ -11,3 +11,6 @@ node_modules/
 
 # VS Code
 .vscode/
+
+# Capacitor: generated from the browser files by scripts/build-www.mjs
+www/

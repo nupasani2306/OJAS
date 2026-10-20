@@ -64,7 +64,7 @@ async function apiFetch(path, options = {}, retried = false) {
   try {
     res = await fetch(OJAS_API + path, { ...options, headers, body: payload });
   } catch {
-    throw new Error('Cannot reach the OJAS server. Check that the backend is running.');
+    throw new Error(`Cannot reach the OJAS server (${OJAS_API}). Check that the backend is running.`);
   }
   let data = null;
   try { data = await res.json(); } catch { /* no JSON body */ }
@@ -81,6 +81,12 @@ async function apiFetch(path, options = {}, retried = false) {
     throw err;
   }
   return data;
+}
+
+// Address of a page for links that leave this device (password-reset email, Medical ID QR).
+// The Android app sets OJAS_WEB_BASE (the hosted browser version); otherwise this page's own address.
+function ojasWebUrl(page) {
+  return new URL(page, window.OJAS_WEB_BASE ? `${window.OJAS_WEB_BASE}/` : location.href).href;
 }
 
 // Local time-zone offset for date-based endpoints (minutes, as JavaScript reports it).

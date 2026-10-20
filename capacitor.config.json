@@ -1,0 +1,8 @@
+{
+  "appId": "com.ojas.app",
+  "appName": "OJAS",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": true
+  }
+}
