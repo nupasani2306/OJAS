@@ -4,7 +4,7 @@
 // JSON parsing, validity checks, alerts, ACK/CANCEL, reconnects). This file only moves bytes.
 //
 //   Android app (Capacitor): @capacitor-community/bluetooth-le, bundled by scripts/build-www.mjs into
-//                            vendor/capacitor-ble.js (exists only in the app build, not in the browser)
+//                            vendor/capacitor-native.js (exists only in the app build, not in the browser)
 //   Browser:                 Web Bluetooth (Chrome / Edge), exactly as before
 //
 // Interface (a "device" is an opaque handle returned by requestDevice / knownDevice):
@@ -133,7 +133,7 @@ const ojasBleAdapter = (() => {
 
   /* ---------------------------------------------------------------- Native (Android app) */
   function nativeTransport() {
-    const lib = window.OjasNativeBle;               // set by vendor/capacitor-ble.js
+    const lib = window.OjasNativeBle;               // set by vendor/capacitor-native.js
     const ble = lib && lib.BleClient;
     const STORE_KEY = 'ojas.bleDevice';             // the confirmed band; removed on sign-out with the other ojas.* keys
     let initialized = null;

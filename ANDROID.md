@@ -17,7 +17,7 @@ project root (browser version, unchanged)
    ▼
 www/  – copy of the 14 pages + their scripts/styles, plus:
         config.js               OJAS_API_BASE / OJAS_WEB_BASE for the app
-        vendor/capacitor-ble.js native Bluetooth plugin (app only)
+        vendor/capacitor-native.js native Bluetooth + back button plugins (app only)
    │  npx cap sync android
    ▼
 android/  – Android Studio project (app ID com.ojas.app)
@@ -136,6 +136,11 @@ untested on a phone; without it the message is sent without the map link.
   native Android *foreground service* (separate task, see below).
 * Signing out forgets the saved band.
 
+**Phone back button** (`back-button.js`, app only): closes an open popup first; on Home or the
+sign-in page it closes the app; on any other screen it goes to the previous screen (Home if there
+is none). It is ignored while the fall / SOS alert or the band-pairing screen is showing, so an
+emergency cannot be dismissed by accident.
+
 ## 6. Links that leave the phone
 
 The password-reset email link and the Medical ID QR code point at `OJAS_WEB_BASE` (the browser
@@ -167,6 +172,7 @@ Bluetooth layer against a simulated plugin with the real plugin's API). Everythi
 | Fall countdown, Cancel (CANCEL to band), CANCELLED from band | ✅ simulated | untested |
 | Disconnect → automatic reconnect | ✅ simulated | untested |
 | Reconnect after changing screens | ✅ simulated | untested (timing unknown) |
+| Phone back button (popups, previous screen, close app) | ✅ simulated | untested |
 | Messages app opens for SOS (`sms:` link) | – | untested |
 | Location for the SOS map link | – | untested |
 | Photo / document upload (file picker) | – | untested |

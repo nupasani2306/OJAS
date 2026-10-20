@@ -41,11 +41,11 @@ for (const file of [...files].sort()) {
   cpSync(from, join(OUT, file));
 }
 
-// Native Bluetooth for the Android app: bundle @capacitor-community/bluetooth-le into one file that
-// the plain <script> pages can load (window.OjasNativeBle). In a browser it is never loaded.
+// Native plugins for the Android app (Bluetooth LE and the back button), bundled into one file the plain
+// <script> pages can load (window.OjasNativeBle / window.OjasNativeApp). In a browser it is never loaded.
 buildSync({
-  entryPoints: [join(ROOT, 'scripts', 'native-ble-entry.mjs')],
-  outfile: join(OUT, 'vendor', 'capacitor-ble.js'),
+  entryPoints: [join(ROOT, 'scripts', 'native-entry.mjs')],
+  outfile: join(OUT, 'vendor', 'capacitor-native.js'),
   bundle: true, format: 'iife', platform: 'browser', target: 'es2019', minify: true, legalComments: 'none', logLevel: 'error',
 });
 
@@ -81,18 +81,16 @@ ${domain}</network-security-config>
 `);
 }
 
-// Load config.js first on every page of the www copy (the browser version is untouched).
+// Load config.js and the native plugins first on every page of the www copy (the browser version is untouched).
 for (const page of pages) {
   const target = join(OUT, page);
   const html = readFileSync(target, 'utf8');
   const at = html.indexOf('<script');
   if (at === -1) continue;
-  let out = `${html.slice(0, at)}<script src="config.js"></script>\n  ${html.slice(at)}`;
-  out = out.replace('<script src="ble-adapter.js"></script>', '<script src="vendor/capacitor-ble.js"></script>\n  <script src="ble-adapter.js"></script>');
-  writeFileSync(target, out);
+  writeFileSync(target, `${html.slice(0, at)}<script src="config.js"></script>\n  <script src="vendor/capacitor-native.js"></script>\n  ${html.slice(at)}`);
 }
 
-console.log(`www/ built: ${files.size} files (${pages.length} pages) + config.js + vendor/capacitor-ble.js`);
+console.log(`www/ built: ${files.size} files (${pages.length} pages) + config.js + vendor/capacitor-native.js`);
 console.log(`  OJAS_API_BASE = ${api || '(not set)'}`);
 console.log(`  OJAS_WEB_BASE = ${web || '(not set)'}`);
 if (api && /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/.test(api)) {
