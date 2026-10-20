@@ -2,10 +2,10 @@
 
 After this, the app works on **any Wi-Fi or mobile data**: no laptop, no `FLASK_HOST`, no IP addresses.
 
-| Service | What | Address (if the names are free) |
+| Service | What | Address |
 |---|---|---|
-| `ojas-api` | Flask backend (gunicorn) | `https://ojas-api.onrender.com` |
-| `ojas-web` | Browser version of the app | `https://ojas-web.onrender.com` |
+| `ojas-api` | Flask backend (gunicorn) | `https://ojas-api-sh10.onrender.com` |
+| `ojas-web` | Browser version of the app | `https://ojas-web-2oi5.onrender.com` |
 
 Both are defined in [`render.yaml`](render.yaml) and deploy from the `main` branch.
 Every push to `main` redeploys them automatically.
@@ -43,8 +43,8 @@ then **Manual Deploy → Deploy latest commit** on ojas-web.
 
 Supabase → **Authentication → URL Configuration**:
 
-* **Site URL:** the ojas-web address, e.g. `https://ojas-web.onrender.com`
-* **Redirect URLs:** add `https://ojas-web.onrender.com/reset-password.html`
+* **Site URL:** the ojas-web address, e.g. `https://ojas-web-2oi5.onrender.com`
+* **Redirect URLs:** add `https://ojas-web-2oi5.onrender.com/reset-password.html`
 
 This makes the password-reset email link open the hosted reset page.
 
@@ -53,8 +53,8 @@ This makes the password-reset email link open the hosted reset page.
 Rebuild the APK with the online addresses (no `http` exception is added for an `https` backend):
 
 ```powershell
-$env:OJAS_API_BASE="https://ojas-api.onrender.com"
-$env:OJAS_WEB_BASE="https://ojas-web.onrender.com"
+$env:OJAS_API_BASE="https://ojas-api-sh10.onrender.com"
+$env:OJAS_WEB_BASE="https://ojas-web-2oi5.onrender.com"
 npm run android:sync
 ```
 

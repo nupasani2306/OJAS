@@ -2,7 +2,7 @@
 # Two free services:
 #   ojas-api  Flask backend (gunicorn). SUPABASE_URL / SUPABASE_KEY are entered in Render, never stored here.
 #   ojas-web  The browser version of the app (static), built by scripts/build-www.mjs.
-# If Render gives a service a different address than below (the name was taken), update
+# The addresses below are the ones Render assigned. If they ever change, update
 # OJAS_API_BASE / OJAS_WEB_BASE on ojas-web and redeploy it. See DEPLOY.md.
 services:
   - type: web
@@ -31,6 +31,6 @@ services:
       - key: NODE_VERSION
         value: "22"
       - key: OJAS_API_BASE
-        value: https://ojas-api.onrender.com
+        value: https://ojas-api-sh10.onrender.com
       - key: OJAS_WEB_BASE
-        value: https://ojas-web.onrender.com
+        value: https://ojas-web-2oi5.onrender.com
