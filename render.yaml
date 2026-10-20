@@ -1,0 +1,36 @@
+# Render Blueprint for OJAS: Render → New → Blueprint → this repository.
+# Two free services:
+#   ojas-api  Flask backend (gunicorn). SUPABASE_URL / SUPABASE_KEY are entered in Render, never stored here.
+#   ojas-web  The browser version of the app (static), built by scripts/build-www.mjs.
+# If Render gives a service a different address than below (the name was taken), update
+# OJAS_API_BASE / OJAS_WEB_BASE on ojas-web and redeploy it. See DEPLOY.md.
+services:
+  - type: web
+    name: ojas-api
+    runtime: python
+    plan: free
+    branch: ojas-android
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 60
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.8
+      - key: SUPABASE_URL
+        sync: false          # asked for when the Blueprint is created
+      - key: SUPABASE_KEY
+        sync: false          # the publishable / anon key, never the service_role key
+
+  - type: web
+    name: ojas-web
+    runtime: static
+    branch: ojas-android
+    buildCommand: npm ci --ignore-scripts --no-audit --no-fund && npm run build:www
+    staticPublishPath: ./www
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: OJAS_API_BASE
+        value: https://ojas-api.onrender.com
+      - key: OJAS_WEB_BASE
+        value: https://ojas-web.onrender.com
