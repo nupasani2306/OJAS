@@ -7,8 +7,8 @@ After this, the app works on **any Wi-Fi or mobile data**: no laptop, no `FLASK_
 | `ojas-api` | Flask backend (gunicorn) | `https://ojas-api.onrender.com` |
 | `ojas-web` | Browser version of the app | `https://ojas-web.onrender.com` |
 
-Both are defined in [`render.yaml`](render.yaml) and deploy from the `ojas-android` branch.
-Every push to that branch redeploys them automatically.
+Both are defined in [`render.yaml`](render.yaml) and deploy from the `main` branch.
+Every push to `main` redeploys them automatically.
 
 > **Free plan:** the backend sleeps after ~15 minutes without requests. The first request after
 > that takes about 30–60 seconds (the app shows "Cannot reach the OJAS server" if it gives up –
@@ -19,7 +19,7 @@ Every push to that branch redeploys them automatically.
 1. Go to **https://render.com** → **Get Started** → sign up with **GitHub**.
 2. Allow Render to access the **nupasani2306/OJAS** repository.
 3. In Render: **New** → **Blueprint** → choose **OJAS**. Render reads `render.yaml`.
-   If it asks which branch holds the Blueprint, choose **`ojas-android`**.
+   If it asks which branch holds the Blueprint, choose **`main`**.
 4. It asks for the two secret values of `ojas-api` – paste the same values as in your laptop's `.env`:
    * `SUPABASE_URL` – e.g. `https://xxxx.supabase.co`
    * `SUPABASE_KEY` – the **publishable / anon** key (never the `service_role` key)
@@ -67,5 +67,5 @@ work from the app too, because they point at the hosted website.
   local `.env` – never in the repository or the app.
 * Logs: Render → service → **Logs**.
 * The website build copies only frontend files (`scripts/build-www.mjs`); no Python or `.env`.
-* To deploy from `main` later (after merging `ojas-android`), change `branch:` in `render.yaml`
-  or in each service's **Settings → Branch**.
+* To deploy from another branch, change `branch:` in `render.yaml` or in each service's
+  **Settings → Branch**.

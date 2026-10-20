@@ -9,7 +9,7 @@ services:
     name: ojas-api
     runtime: python
     plan: free
-    branch: ojas-android
+    branch: main
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 60
     healthCheckPath: /api/health
@@ -24,7 +24,7 @@ services:
   - type: web
     name: ojas-web
     runtime: static
-    branch: ojas-android
+    branch: main
     buildCommand: npm ci --ignore-scripts --no-audit --no-fund && npm run build:www
     staticPublishPath: ./www
     envVars:
